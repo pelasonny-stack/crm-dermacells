@@ -39,6 +39,19 @@ class SellerStockResource extends Resource
         return auth()->user()?->role === UserRole::Director;
     }
 
+    /**
+     * Seller views own stock (RLS); Distributor views zone sellers' stock;
+     * Director sees all.
+     */
+    public static function canViewAny(): bool
+    {
+        return in_array(auth()->user()?->role, [
+            UserRole::Director,
+            UserRole::Distributor,
+            UserRole::Seller,
+        ], true);
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([

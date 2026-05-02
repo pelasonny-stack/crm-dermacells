@@ -32,6 +32,17 @@ class SellerCommissionConfigResource extends Resource
 
     protected static ?int $navigationSort = 4;
 
+    /**
+     * Director configures commission rates. Distributor reads own config (read-only).
+     */
+    public static function canViewAny(): bool
+    {
+        return in_array(auth()->user()?->role, [
+            UserRole::Director,
+            UserRole::Distributor,
+        ], true);
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([

@@ -24,7 +24,10 @@ final class SalesByZoneChart extends ChartWidget
 
     public static function canView(): bool
     {
-        return auth()->user()?->role === UserRole::Director;
+        return in_array(auth()->user()?->role, [
+            UserRole::Director,
+            UserRole::Distributor,
+        ], true);
     }
 
     protected function getType(): string

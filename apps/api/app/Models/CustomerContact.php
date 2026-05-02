@@ -38,12 +38,14 @@ class CustomerContact extends Model
         'email',
         'role_label',
         'birthday',
+        'is_primary',
     ];
 
     protected function casts(): array
     {
         return [
-            'birthday' => 'date',
+            'birthday'   => 'date',
+            'is_primary' => 'boolean',
         ];
     }
 

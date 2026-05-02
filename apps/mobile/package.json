@@ -18,7 +18,9 @@
     "axios": "^1.7.9",
     "expo": "~54.0.33",
     "expo-auth-session": "^7.0.11",
+    "expo-constants": "~18.0.13",
     "expo-crypto": "^15.0.9",
+    "expo-linking": "~8.0.12",
     "expo-local-authentication": "^17.0.8",
     "expo-notifications": "^0.32.17",
     "expo-router": "^6.0.23",
@@ -28,6 +30,8 @@
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-mmkv": "^3.2.0",
+    "react-native-safe-area-context": "~5.6.2",
+    "react-native-screens": "~4.16.0",
     "zustand": "^5.0.3"
   },
   "devDependencies": {

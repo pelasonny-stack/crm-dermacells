@@ -35,6 +35,17 @@ class DistributorSettlementResource extends Resource
 
     protected static ?int $navigationSort = 3;
 
+    /**
+     * Director approves/rejects. Distributor submits and tracks own settlements.
+     */
+    public static function canViewAny(): bool
+    {
+        return in_array(auth()->user()?->role, [
+            \App\Enums\UserRole::Director,
+            \App\Enums\UserRole::Distributor,
+        ], true);
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([

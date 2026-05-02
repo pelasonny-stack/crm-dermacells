@@ -6,12 +6,15 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Domain\AI\UseCases\AskNaturalLanguageQuestion;
 use App\Domain\AI\UseCases\GenerateDailyDigest;
+use App\Domain\AI\UseCases\SuggestCustomerReassignments;
 use App\Domain\AI\UseCases\SuggestNextActionForCustomer;
+use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\AiSetting;
 use App\Models\AiUsage;
 use App\Models\AiUserOverride;
 use App\Models\Customer;
+use App\Models\Zone;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -24,10 +27,11 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * Endpoints (all behind 'ai.cap' middleware which enforces global switch,
  * per-user override, and monthly token cap):
  *
- *   POST /api/v1/ai/ask                        — natural-language Q&A (SSE)
- *   POST /api/v1/ai/customers/{id}/suggest-next — structured next action
- *   GET  /api/v1/ai/digest/me                  — cached morning brief
- *   GET  /api/v1/ai/usage/me                   — current month usage + cost
+ *   POST /api/v1/ai/ask                           — natural-language Q&A (SSE)
+ *   POST /api/v1/ai/customers/{id}/suggest-next   — structured next action
+ *   GET  /api/v1/ai/digest/me                     — cached morning brief
+ *   GET  /api/v1/ai/usage/me                      — current month usage + cost
+ *   POST /api/v1/ai/reassignments/suggest          — Director: AI reassignment (§11.4)
  */
 final class AIController extends Controller
 {
@@ -77,6 +81,50 @@ final class AIController extends Controller
         $result = $useCase->execute($caller);
 
         return response()->json($result);
+    }
+
+    /**
+     * POST /ai/reassignments/suggest — Director-only structured reassignment suggestions.
+     *
+     * Optional body:
+     *   zone_id  string|null  Filter to a single zone (Director sees all by default).
+     *   limit    int          Max suggestions returned (default 20, max 50).
+     *
+     * Returns:
+     *   { suggestions: [{ customer_id, current_seller_id, suggested_seller_id, reason, confidence }] }
+     */
+    public function suggestReassignments(
+        Request $request,
+        SuggestCustomerReassignments $useCase,
+    ): JsonResponse {
+        $caller = $request->user();
+
+        // Director-only guard at the HTTP layer (use case also asserts).
+        $role = $caller?->getAttribute('role');
+        $isDirector = ($role instanceof UserRole && $role->isDirector())
+            || $role === UserRole::Director->value;
+
+        if (! $isDirector) {
+            return response()->json([
+                'type'   => 'https://crm.dermacells.com/problems/FORBIDDEN',
+                'title'  => 'FORBIDDEN',
+                'status' => 403,
+                'detail' => 'This endpoint is restricted to Directors.',
+                'code'   => 'FORBIDDEN',
+            ], 403)->header('Content-Type', 'application/problem+json');
+        }
+
+        $validated = $request->validate([
+            'zone_id' => ['nullable', 'uuid', 'exists:zones,id'],
+            'limit'   => ['nullable', 'integer', 'min:1', 'max:50'],
+        ]);
+
+        $zone  = isset($validated['zone_id']) ? Zone::find($validated['zone_id']) : null;
+        $limit = (int) ($validated['limit'] ?? 20);
+
+        $suggestions = $useCase->execute($caller, $zone, $limit);
+
+        return response()->json(['suggestions' => $suggestions]);
     }
 
     /**

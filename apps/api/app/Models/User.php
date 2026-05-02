@@ -96,9 +96,22 @@ class User extends Authenticatable implements FilamentUser, HasName
 
     /**
      * Filament FilamentUser contract — gate panel access by role.
+     *
+     * DEMO MODE — local env relaxation, production reverts.
+     * In local/demo all three roles may enter /admin so role-scoped widgets
+     * and sidebar visibility can be demonstrated. In production only Director
+     * gets in (enforced here AND re-enforced by AdminAccessGate middleware).
      */
     public function canAccessPanel(Panel $panel): bool
     {
+        if (app()->environment('local')) {
+            return in_array($this->role, [
+                UserRole::Director,
+                UserRole::Distributor,
+                UserRole::Seller,
+            ], true);
+        }
+
         return $this->role === UserRole::Director;
     }
 

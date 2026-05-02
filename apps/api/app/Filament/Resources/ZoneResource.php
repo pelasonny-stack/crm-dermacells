@@ -49,6 +49,18 @@ class ZoneResource extends Resource
         return auth()->user()?->role === UserRole::Director;
     }
 
+    /**
+     * Distributor can view zones (read-only) to understand their territory.
+     * Director retains full CRUD via canAccess() above.
+     */
+    public static function canViewAny(): bool
+    {
+        return in_array(auth()->user()?->role, [
+            UserRole::Director,
+            UserRole::Distributor,
+        ], true);
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([

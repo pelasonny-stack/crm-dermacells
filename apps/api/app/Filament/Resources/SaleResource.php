@@ -48,6 +48,19 @@ class SaleResource extends Resource
 
     protected static ?int $navigationSort = 1;
 
+    /**
+     * All three roles may view the sales list (RLS + getEloquentQuery() scope
+     * each role to their own records at query time).
+     */
+    public static function canViewAny(): bool
+    {
+        return in_array(auth()->user()?->role, [
+            UserRole::Director,
+            UserRole::Distributor,
+            UserRole::Seller,
+        ], true);
+    }
+
     // -------------------------------------------------------------------------
     // Form — used for creating/editing draft sales
     // -------------------------------------------------------------------------
@@ -144,6 +157,7 @@ class SaleResource extends Resource
                     )->toArray())
                     ->label('Estado'),
             ])
+            ->recordUrl(fn (Sale $record): string => static::getUrl('view', ['record' => $record]))
             ->actions([
                 // ---- Confirm action (draft → confirmed) ----
                 Tables\Actions\Action::make('confirm')

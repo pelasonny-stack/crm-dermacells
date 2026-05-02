@@ -1044,12 +1044,24 @@ class DemoDataSeeder extends Seeder
         // ------------------------------------------------------------------
         DB::transaction(function () use ($createdSales, $allSellers, $director) {
             $sampleSales = collect($createdSales)->take(5);
+            // Each def carries its own coherent values: PriceChange uses USD
+            // amounts (sale unit price); ExchangeRateChange uses ARS/USD rate.
             $authDefs = [
-                ['type' => AuthorizationType::PriceChange,       'status' => 'pending',  'sale_idx' => 0],
-                ['type' => AuthorizationType::ExchangeRateChange,'status' => 'pending',  'sale_idx' => 1],
-                ['type' => AuthorizationType::PriceChange,       'status' => 'approved', 'sale_idx' => 2],
-                ['type' => AuthorizationType::ExchangeRateChange,'status' => 'approved', 'sale_idx' => 3],
-                ['type' => AuthorizationType::PriceChange,       'status' => 'rejected', 'sale_idx' => 4],
+                ['type' => AuthorizationType::PriceChange,        'status' => 'pending',  'sale_idx' => 0,
+                 'current' => '750.00',  'proposed' => '700.00',  'currency' => 'USD',
+                 'reason'  => 'Cliente solicita precio especial por volumen - Demo'],
+                ['type' => AuthorizationType::ExchangeRateChange, 'status' => 'pending',  'sale_idx' => 1,
+                 'current' => '1050.00', 'proposed' => '1080.00', 'currency' => 'ARS',
+                 'reason'  => 'TC BNA del día anterior desactualizado vs cotización mercado - Demo'],
+                ['type' => AuthorizationType::PriceChange,        'status' => 'approved', 'sale_idx' => 2,
+                 'current' => '750.00',  'proposed' => '720.00',  'currency' => 'USD',
+                 'reason'  => 'Descuento por volumen aprobado por Director - Demo'],
+                ['type' => AuthorizationType::ExchangeRateChange, 'status' => 'approved', 'sale_idx' => 3,
+                 'current' => '1000.00', 'proposed' => '1075.00', 'currency' => 'ARS',
+                 'reason'  => 'Cierre de venta con TC del día actual - Demo'],
+                ['type' => AuthorizationType::PriceChange,        'status' => 'rejected', 'sale_idx' => 4,
+                 'current' => '750.00',  'proposed' => '650.00',  'currency' => 'USD',
+                 'reason'  => 'Pedido descuento mayor al estándar - Demo'],
             ];
 
             foreach ($authDefs as $idx => $def) {
@@ -1068,14 +1080,14 @@ class DemoDataSeeder extends Seeder
                     'type'             => $def['type'],
                     'sale_id'          => $sale?->id,
                     'requested_by'     => $seller->id,
-                    'current_value'    => '750.00',
-                    'proposed_value'   => '700.00',
-                    'value_currency'   => 'USD',
-                    'reason'           => 'Cliente solicita precio especial por volumen - Demo',
+                    'current_value'    => $def['current'],
+                    'proposed_value'   => $def['proposed'],
+                    'value_currency'   => $def['currency'],
+                    'reason'           => $def['reason'],
                     'status'           => $def['status'],
                     'resolved_by'      => in_array($def['status'], ['approved', 'rejected']) ? $director->id : null,
                     'resolved_at'      => in_array($def['status'], ['approved', 'rejected']) ? now()->subDays(rand(1, 5)) : null,
-                    'rejection_reason' => $def['status'] === 'rejected' ? 'No cumple condiciones de volumen mínimo' : null,
+                    'rejection_reason' => $def['status'] === 'rejected' ? 'No cumple condiciones de descuento mínimo' : null,
                     'expires_at'       => now()->addDays(7),
                 ]);
                 $this->countAuthRequests++;

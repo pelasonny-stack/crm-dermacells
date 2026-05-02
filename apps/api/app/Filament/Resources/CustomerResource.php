@@ -46,6 +46,18 @@ class CustomerResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'first_name';
 
+    /**
+     * All roles may view customers (scoped by RLS to their zone/assignment).
+     */
+    public static function canViewAny(): bool
+    {
+        return in_array(auth()->user()?->role, [
+            \App\Enums\UserRole::Director,
+            \App\Enums\UserRole::Distributor,
+            \App\Enums\UserRole::Seller,
+        ], true);
+    }
+
     public static function getGloballySearchableAttributes(): array
     {
         return ['first_name', 'last_name', 'cuit', 'email', 'phone'];
@@ -225,13 +237,23 @@ class CustomerResource extends Resource
                                             ->maxLength(255),
                                         Forms\Components\TextInput::make('role_label')
                                             ->label('Cargo / Rol')
+                                            ->placeholder('Ej.: Dueña, Dir. Médica, Administrativa')
                                             ->required()
                                             ->maxLength(255),
                                         Forms\Components\DatePicker::make('birthday')
                                             ->label('Fecha de cumpleaños')
                                             ->helperText('Si se carga, el vendedor recibe un push a las 8AM del día.'),
+                                        Forms\Components\Toggle::make('is_primary')
+                                            ->label('Contacto principal')
+                                            ->helperText('Solo uno por cliente — sirve como referencia primaria.')
+                                            ->columnSpanFull(),
                                     ])
                                     ->columns(2)
+                                    ->itemLabel(fn (array $state): ?string =>
+                                        ($state['is_primary'] ?? false)
+                                            ? '★ ' . ($state['full_name'] ?? 'Contacto') . ' (principal)'
+                                            : ($state['full_name'] ?? null)
+                                    )
                                     ->addActionLabel('Agregar contacto'),
                             ]),
 
@@ -315,6 +337,7 @@ class CustomerResource extends Resource
                     ->label('Vendedor')
                     ->relationship('assignedSeller', 'full_name'),
             ])
+            ->recordUrl(fn (\App\Models\Customer $record): string => static::getUrl('edit', ['record' => $record]))
             ->actions([
                 Tables\Actions\EditAction::make(),
             ])

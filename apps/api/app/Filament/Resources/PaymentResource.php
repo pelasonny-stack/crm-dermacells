@@ -35,6 +35,19 @@ class PaymentResource extends Resource
 
     protected static ?int $navigationSort = 1;
 
+    /**
+     * Seller and Distributor can view their own payments (RLS-scoped).
+     * Director sees all.
+     */
+    public static function canViewAny(): bool
+    {
+        return in_array(auth()->user()?->role, [
+            \App\Enums\UserRole::Director,
+            \App\Enums\UserRole::Distributor,
+            \App\Enums\UserRole::Seller,
+        ], true);
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([
@@ -142,6 +155,7 @@ class PaymentResource extends Resource
                     ->label('Solo anticipos'),
             ])
             ->defaultSort('payment_date', 'desc')
+            ->recordUrl(fn (\App\Models\Payment $record): string => static::getUrl('view', ['record' => $record]))
             ->actions([
                 Tables\Actions\ViewAction::make(),
             ])

@@ -65,4 +65,28 @@ if (app()->environment('local')) {
 
         return redirect('/admin');
     })->name('dev.login')->withoutMiddleware([\App\Http\Middleware\SetPostgresRlsContext::class, \App\Http\Middleware\CheckIdleTimeout::class]);
+
+    // DEMO MODE — multi-role dev login. Accepts short handle (e.g. "eduardo")
+    // or full email. Bypasses RLS middleware and idle timeout like /dev-login.
+    Route::get('/dev-login-as/{email}', function (string $email) {
+        $user = \App\Models\User::on('pgsql_migration')
+            ->where('email', $email . '@demo.dermacells.local')
+            ->orWhere('email', $email)
+            ->firstOrFail();
+
+        $user->setConnection(config('database.default'));
+
+        \Illuminate\Support\Facades\Auth::login($user, false);
+        session(['last_activity' => now()->toIso8601String()]);
+
+        return redirect('/admin');
+    })->name('dev.login-as')->withoutMiddleware([
+        \App\Http\Middleware\SetPostgresRlsContext::class,
+        \App\Http\Middleware\CheckIdleTimeout::class,
+    ]);
+
+    // DEMO MODE — root landing page listing quick-login links for each demo persona.
+    Route::get('/', function () {
+        return view('dev-login-landing');
+    })->name('dev.landing');
 }

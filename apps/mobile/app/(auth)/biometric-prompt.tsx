@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useAuthStore } from '@/auth/auth-store';
 import { savePendingToken } from '@/auth/secure-storage';
+import { registerForFcm } from '@/notifications/fcm-channel';
 
 export default function BiometricPromptScreen() {
   const router = useRouter();
@@ -39,6 +40,10 @@ export default function BiometricPromptScreen() {
         await savePendingToken(pendingToken);
         setToken(pendingToken);
         setPendingToken(null);
+        // Register this device for push notifications (non-blocking)
+        registerForFcm(pendingToken).catch((err) =>
+          console.warn('[BiometricPrompt] FCM register error:', err)
+        );
         router.replace('/(app)');
       } else {
         Alert.alert('Autenticación fallida', 'Por favor intenta de nuevo.');
@@ -59,6 +64,10 @@ export default function BiometricPromptScreen() {
     await savePendingToken(pendingToken);
     setToken(pendingToken);
     setPendingToken(null);
+    // Register this device for push notifications (non-blocking)
+    registerForFcm(pendingToken).catch((err) =>
+      console.warn('[BiometricPrompt] FCM register error:', err)
+    );
     router.replace('/(app)');
   };
 

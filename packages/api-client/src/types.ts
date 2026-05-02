@@ -114,6 +114,21 @@ export interface PaginatedResponse<T> {
   };
 }
 
+export type AlertSeverity = 'info' | 'warning' | 'critical';
+
+export interface Alert {
+  id: number;
+  alert_type: string;
+  target_user_id: number;
+  reference_entity_type?: string | null;
+  reference_entity_id?: number | null;
+  payload: Record<string, unknown>;
+  severity: AlertSeverity;
+  delivered_at?: string | null;
+  read_at?: string | null;
+  created_at: string;
+}
+
 /** RFC 7807 problem+json error shape */
 export interface ProblemDetail {
   type: string;

@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Text } from 'react-native';
+import { useUnreadAlerts } from '@/api/alerts';
 
 function TabIcon({ label, focused }: { label: string; focused: boolean }) {
   return (
@@ -9,7 +10,17 @@ function TabIcon({ label, focused }: { label: string; focused: boolean }) {
   );
 }
 
+function useAlertBadge(): string | number | undefined {
+  const { data } = useUnreadAlerts();
+  const count = data?.meta?.unread_count ?? 0;
+  if (count === 0) return undefined;
+  if (count >= 100) return '99+';
+  return count;
+}
+
 export default function AppLayout() {
+  const alertBadge = useAlertBadge();
+
   return (
     <Tabs
       screenOptions={{
@@ -55,6 +66,13 @@ export default function AppLayout() {
         options={{
           title: 'Alertas',
           tabBarLabel: ({ focused }) => <TabIcon label="Alertas" focused={focused} />,
+          tabBarBadge: alertBadge,
+          tabBarBadgeStyle: {
+            backgroundColor: '#ef4444',
+            color: '#fff',
+            fontSize: 10,
+            minWidth: 16,
+          },
         }}
       />
     </Tabs>

@@ -13,7 +13,7 @@ interface AuthState {
   signOut: () => void;
 }
 
-export const useAuthStore = create<AuthState>()((set) => ({
+export const useAuthStore = create<AuthState>()((set, get) => ({
   token: null,
   user: null,
   pendingToken: null,
@@ -22,10 +22,20 @@ export const useAuthStore = create<AuthState>()((set) => ({
   setUser: (user) => set({ user }),
   setPendingToken: (pendingToken) => set({ pendingToken }),
 
-  signOut: () =>
+  signOut: () => {
+    const currentToken = get().token;
+
+    // Fire-and-forget FCM unregistration before clearing state
+    if (currentToken) {
+      import('@/notifications/fcm-channel')
+        .then(({ unregisterFcm }) => unregisterFcm(currentToken))
+        .catch((err) => console.warn('[AuthStore] FCM unregister error:', err));
+    }
+
     set({
       token: null,
       user: null,
       pendingToken: null,
-    }),
+    });
+  },
 }));

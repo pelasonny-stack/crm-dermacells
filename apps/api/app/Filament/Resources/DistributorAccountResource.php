@@ -33,6 +33,17 @@ class DistributorAccountResource extends Resource
 
     protected static ?int $navigationSort = 2;
 
+    /**
+     * Director sees all accounts. Distributor sees own account (RLS-scoped).
+     */
+    public static function canViewAny(): bool
+    {
+        return in_array(auth()->user()?->role, [
+            \App\Enums\UserRole::Director,
+            \App\Enums\UserRole::Distributor,
+        ], true);
+    }
+
     public static function table(Table $table): Table
     {
         return $table

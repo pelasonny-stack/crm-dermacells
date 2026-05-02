@@ -41,6 +41,17 @@ class DistributorStockResource extends Resource
         return auth()->user()?->role === UserRole::Director;
     }
 
+    /**
+     * Distributor views their own stock via RLS scoping.
+     */
+    public static function canViewAny(): bool
+    {
+        return in_array(auth()->user()?->role, [
+            UserRole::Director,
+            UserRole::Distributor,
+        ], true);
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([

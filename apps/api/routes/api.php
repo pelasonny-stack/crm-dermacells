@@ -377,6 +377,10 @@ Route::prefix('v1')->group(function (): void {
 
             Route::get('usage/me', [AIController::class, 'usage'])
                 ->name('ai.usage.me');
+
+            // Phase 13 — §11.4: Director-only reassignment suggestions.
+            Route::post('reassignments/suggest', [AIController::class, 'suggestReassignments'])
+                ->name('ai.reassignments.suggest');
         });
 
         // -------------------------------------------------------------------------

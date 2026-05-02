@@ -28,7 +28,12 @@ class CriticalAlertsWidget extends StatsOverviewWidget
 
     public static function canView(): bool
     {
-        return auth()->user()?->role === UserRole::Director;
+        // All roles see their own alerts (filtered by RLS at DB level).
+        return in_array(auth()->user()?->role, [
+            UserRole::Director,
+            UserRole::Distributor,
+            UserRole::Seller,
+        ], true);
     }
 
     protected function getStats(): array

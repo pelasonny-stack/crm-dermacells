@@ -53,6 +53,15 @@ class AdminAccessGate
             abort(403, 'Acceso denegado al panel de administración.');
         }
 
+        // DEMO MODE — local env relaxation, production reverts.
+        // In local environment any authenticated user (Seller, Distributor, Director)
+        // may reach /admin so role-scoped panels can be demonstrated without a
+        // production credential. The IP allowlist is also skipped in local.
+        // In production the full director-only + IP allowlist check runs as usual.
+        if (app()->environment('local')) {
+            return $next($request);
+        }
+
         if (! $this->isDirector($user)) {
             Log::warning('Filament admin access denied — non-director role', [
                 'user_id' => $user->getAuthIdentifier(),

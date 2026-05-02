@@ -1,6 +1,7 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/auth/auth-store';
 import type { UserRole } from '@dermacells/api-client';
+import { AlertBell } from '@/components/AlertBell';
 
 interface NavItem {
   to: string;
@@ -97,13 +98,16 @@ export function AppShell() {
           <h1 className="text-base font-semibold text-neutral-800">
             {/* Page title comes from the route — placeholder */}
           </h1>
-          <button
-            type="button"
-            onClick={() => void handleLogout()}
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-          >
-            Cerrar sesion
-          </button>
+          <div className="flex items-center gap-2">
+            <AlertBell />
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+            >
+              Cerrar sesion
+            </button>
+          </div>
         </header>
 
         {/* Page content */}
