@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+vendor/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.next/
+.turbo/
+.expo/
+.expo-shared/
+
+# Env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Laravel
+apps/api/storage/*.key
+apps/api/storage/logs/*.log
+apps/api/storage/framework/cache/data/*
+apps/api/storage/framework/sessions/*
+apps/api/storage/framework/testing/*
+apps/api/storage/framework/views/*
+apps/api/storage/app/public/*
+apps/api/bootstrap/cache/*.php
+apps/api/.phpunit.cache/
+apps/api/.phpunit.result.cache
+apps/api/coverage/
+apps/api/.scribe/
+
+# Mobile
+apps/mobile/ios/build/
+apps/mobile/android/build/
+apps/mobile/android/.gradle/
+apps/mobile/android/app/build/
+apps/mobile/.expo/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Secrets
+*.pem
+*.key
+secrets.json

@@ -1,0 +1,42 @@
+{
+    # FrankenPHP worker mode — keeps Laravel booted in memory between requests
+    frankenphp
+
+    # Disable automatic HTTPS in container (TLS is terminated at ALB level)
+    auto_https off
+
+    admin off
+}
+
+:8000 {
+    # Serve static files from /app/public; pass everything else to FrankenPHP
+    root * /app/public
+
+    # Enable FrankenPHP worker
+    php_server {
+        worker /app/public/index.php
+    }
+
+    # Compress responses
+    encode zstd br gzip
+
+    # Security headers
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    # Static assets with cache headers
+    @static {
+        path *.css *.js *.png *.jpg *.jpeg *.gif *.ico *.svg *.woff *.woff2 *.ttf
+    }
+    header @static Cache-Control "public, max-age=31536000, immutable"
+
+    log {
+        output stdout
+        format json
+        level INFO
+    }
+}

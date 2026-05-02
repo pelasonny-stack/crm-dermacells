@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'apps/api/**'
+      - '.github/workflows/ci.yml'
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: PHP ${{ matrix.php }} — Test suite
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.3', '8.4']
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: dermacells_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      redis:
+        image: redis:8
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    defaults:
+      run:
+        working-directory: apps/api
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pgsql, redis, bcmath, intl, pcntl
+          coverage: xdebug
+          tools: composer:v2
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: apps/api/vendor
+          key: composer-php${{ matrix.php }}-${{ hashFiles('apps/api/composer.lock') }}
+          restore-keys: |
+            composer-php${{ matrix.php }}-
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+        env:
+          APP_ENV: testing
+
+      - name: Override DB environment for CI
+        run: |
+          echo "DB_CONNECTION=pgsql" >> .env
+          echo "DB_HOST=127.0.0.1" >> .env
+          echo "DB_PORT=5432" >> .env
+          echo "DB_DATABASE=dermacells_test" >> .env
+          echo "DB_USERNAME=postgres" >> .env
+          echo "DB_PASSWORD=postgres" >> .env
+          echo "DB_SSLMODE=disable" >> .env
+          echo "QUEUE_CONNECTION=sync" >> .env
+          echo "CACHE_STORE=array" >> .env
+          echo "SESSION_DRIVER=array" >> .env
+          echo "BROADCAST_CONNECTION=null" >> .env
+
+      - name: Run database migrations
+        run: php artisan migrate --force
+        env:
+          APP_ENV: testing
+
+      - name: Lint — Pint
+        run: ./vendor/bin/pint --test
+
+      - name: Static analysis — Larastan / PHPStan
+        run: ./vendor/bin/phpstan analyse --memory-limit=2G
+
+      - name: Tests — Pest with coverage
+        run: ./vendor/bin/pest --coverage --min=85
+        env:
+          APP_ENV: testing
+
+      - name: OpenAPI — Scribe generate + diff check
+        run: |
+          php artisan scribe:generate --no-interaction
+          if ! git diff --exit-code -- '*.yaml' '*.json' '*.html' '.scribe/' 2>/dev/null; then
+            echo "::error::Scribe-generated OpenAPI spec has uncommitted changes. Run 'php artisan scribe:generate' locally and commit the result."
+            exit 1
+          fi
+        env:
+          APP_ENV: testing

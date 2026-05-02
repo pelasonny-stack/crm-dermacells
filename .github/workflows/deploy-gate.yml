@@ -1,0 +1,79 @@
+name: Deploy Gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  dangerous-command-check:
+    name: Reject dangerous migration commands
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Fetch full history so we can inspect all commits in the PR range
+          fetch-depth: 0
+
+      - name: Check commit messages for forbidden commands
+        run: |
+          FORBIDDEN_PATTERN='migrate:fresh|migrate:rollback'
+
+          # On PRs, scan every commit in the PR range.
+          # On push to main, scan only the pushed commits.
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+            COMMITS=$(git log --format="%H %s" "${BASE_SHA}..${HEAD_SHA}")
+          else
+            COMMITS=$(git log --format="%H %s" "${{ github.event.before }}..${{ github.event.after }}" 2>/dev/null || git log -1 --format="%H %s")
+          fi
+
+          FAILED=0
+          while IFS= read -r line; do
+            SHA="${line%% *}"
+            MSG="${line#* }"
+            if echo "$MSG" | grep -qE "$FORBIDDEN_PATTERN"; then
+              echo "::error::Commit ${SHA} contains a forbidden command: '${MSG}'"
+              FAILED=1
+            fi
+          done <<< "$COMMITS"
+
+          if [ "$FAILED" = "1" ]; then
+            echo "::error::One or more commits reference 'migrate:fresh' or 'migrate:rollback'. These commands are permanently blocked from the CI pipeline to protect the audit log."
+            exit 1
+          fi
+
+          echo "Commit message check passed."
+
+      - name: Check PR title for forbidden commands
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          FORBIDDEN_PATTERN='migrate:fresh|migrate:rollback'
+          if echo "$PR_TITLE" | grep -qE "$FORBIDDEN_PATTERN"; then
+            echo "::error::PR title contains a forbidden command: '${PR_TITLE}'. Rename the PR to remove 'migrate:fresh' or 'migrate:rollback'."
+            exit 1
+          fi
+          echo "PR title check passed."
+
+      - name: Scan migration files for audit_log drop
+        run: |
+          PATTERN='Schema::dropIfExists\s*\(\s*['"'"'"'"'"']audit_log['"'"'"'"'"']'
+          FAILED=0
+
+          while IFS= read -r -d '' file; do
+            if grep -qP "$PATTERN" "$file" 2>/dev/null; then
+              echo "::error file=${file}::Migration file contains 'Schema::dropIfExists(\"audit_log\")'. Dropping the audit log table is permanently forbidden."
+              FAILED=1
+            fi
+          done < <(find apps/api/database/migrations -name '*.php' -print0 2>/dev/null)
+
+          if [ "$FAILED" = "1" ]; then
+            exit 1
+          fi
+
+          echo "Migration file scan passed."

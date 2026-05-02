@@ -1,0 +1,14 @@
+{
+    "preset": "laravel",
+    "rules": {
+        "array_syntax": {
+            "syntax": "short"
+        },
+        "fully_qualified_strict_types": true,
+        "global_imports_from_same_namespace": true,
+        "ordered_imports": {
+            "imports_order": ["class", "function", "const"],
+            "sort_algorithm": "alpha"
+        }
+    }
+}

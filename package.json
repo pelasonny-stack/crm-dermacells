@@ -1,0 +1,12 @@
+{
+  "name": "crm-dermacells",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "./scripts/dev.sh",
+    "setup": "./scripts/setup-local.sh"
+  }
+}

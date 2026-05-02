@@ -1,0 +1,163 @@
+# docker-compose.yml — prod-like local stack for crm-dermacells API
+# Requires Docker Desktop (or Docker Engine + Compose v2) to be installed.
+# Usage: docker compose up -d
+#
+# Services:
+#   postgres   — Postgres 17 (primary)
+#   pgbouncer  — PgBouncer 1.23 in transaction mode (connection pooler)
+#   redis      — Redis 8
+#   app        — Laravel 12 via FrankenPHP (worker mode)
+
+name: crm-dermacells
+
+# ---------------------------------------------------------------------------
+# Named volumes (persist across container restarts)
+# ---------------------------------------------------------------------------
+volumes:
+  postgres_data:
+  redis_data:
+
+# ---------------------------------------------------------------------------
+# Shared network
+# ---------------------------------------------------------------------------
+networks:
+  dermacells:
+    driver: bridge
+
+# ---------------------------------------------------------------------------
+# Services
+# ---------------------------------------------------------------------------
+services:
+
+  # --------------------------------------------------------------------------
+  # Postgres 17
+  # --------------------------------------------------------------------------
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    networks:
+      - dermacells
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    environment:
+      POSTGRES_DB: dermacells
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      # Expose on a non-standard local port to avoid conflicts with a brew Postgres
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d dermacells"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # --------------------------------------------------------------------------
+  # PgBouncer 1.23 — transaction mode (required for PHP-FPM / FrankenPHP)
+  # PDO::ATTR_EMULATE_PREPARES=true must be set in Laravel's pgsql config
+  # because named prepared statements are not supported in transaction mode.
+  # --------------------------------------------------------------------------
+  pgbouncer:
+    image: bitnami/pgbouncer:1.23.1
+    restart: unless-stopped
+    networks:
+      - dermacells
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRESQL_HOST: postgres
+      POSTGRESQL_PORT: 5432
+      POSTGRESQL_DATABASE: dermacells
+      POSTGRESQL_USERNAME: postgres
+      POSTGRESQL_PASSWORD: postgres
+      PGBOUNCER_DATABASE: dermacells
+      PGBOUNCER_POOL_MODE: transaction
+      PGBOUNCER_MAX_CLIENT_CONN: 200
+      PGBOUNCER_DEFAULT_POOL_SIZE: 20
+      PGBOUNCER_MIN_POOL_SIZE: 5
+      PGBOUNCER_AUTH_TYPE: scram-sha-256
+    ports:
+      - "6432:6432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432 -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # --------------------------------------------------------------------------
+  # Redis 8
+  # --------------------------------------------------------------------------
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    networks:
+      - dermacells
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --------------------------------------------------------------------------
+  # Laravel app — FrankenPHP worker mode
+  # --------------------------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    restart: unless-stopped
+    networks:
+      - dermacells
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_URL: http://localhost:8000
+
+      # Point at PgBouncer, not Postgres directly
+      DB_CONNECTION: pgsql
+      DB_HOST: pgbouncer
+      DB_PORT: 6432
+      DB_DATABASE: dermacells
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      DB_SSLMODE: disable
+      # Required for PgBouncer transaction mode
+      DB_OPTIONS__PDO_PGSQL_ATTR_EMULATE_PREPARES: "true"
+
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+      QUEUE_CONNECTION: redis
+      CACHE_STORE: redis
+      SESSION_DRIVER: database
+      BROADCAST_CONNECTION: reverb
+
+      LOG_CHANNEL: stderr
+      LOG_LEVEL: info
+
+      # In real prod these come from AWS Secrets Manager at boot.
+      # For local docker compose, override via .env or a secrets file.
+      APP_KEY: "${APP_KEY:-}"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8000/up || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
