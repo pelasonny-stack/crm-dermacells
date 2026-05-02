@@ -32,4 +32,24 @@ final class StockInsufficientException extends RuntimeException
             )
         );
     }
+
+    public function getApiCode(): string
+    {
+        return 'STOCK_INSUFFICIENT';
+    }
+
+    public function getProductId(): string
+    {
+        return $this->productId;
+    }
+
+    public function getRequested(): int
+    {
+        return $this->requested;
+    }
+
+    public function getAvailable(): int
+    {
+        return $this->available;
+    }
 }

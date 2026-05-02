@@ -31,10 +31,13 @@ class SalesStatusHistory extends Model
 {
     use HasUuids;
 
+    protected $table = 'sales_status_history';
+
     /**
-     * History rows are immutable — disable updated_at.
+     * History rows are immutable — no Laravel-managed timestamps.
+     * The table has no created_at / updated_at columns; changed_at is explicit.
      */
-    public const UPDATED_AT = null;
+    public $timestamps = false;
 
     protected $fillable = [
         'sale_id',

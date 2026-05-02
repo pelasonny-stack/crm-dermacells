@@ -69,22 +69,19 @@ final class AccountBalanceUpdater
             $delta = -$delta;
         }
 
-        // Upsert: insert row if none exists, otherwise atomically add the delta
-        $existing = CustomerAccountBalance::where('customer_id', $payment->customer_id)->first();
+        // Upsert: insert row if none exists, otherwise atomically add the delta.
+        // Use insertOrIgnore + UPDATE to avoid race conditions on the unique key.
+        DB::table('customer_account_balances')->insertOrIgnore([
+            'id'          => \Illuminate\Support\Str::uuid()->toString(),
+            'customer_id' => $payment->customer_id,
+            'balance_ars' => 0,
+            'balance_usd' => 0,
+            'updated_at'  => now(),
+        ]);
 
-        if ($existing === null) {
-            CustomerAccountBalance::create([
-                'customer_id' => $payment->customer_id,
-                'balance_ars' => $column === 'balance_ars' ? $delta : 0,
-                'balance_usd' => $column === 'balance_usd' ? $delta : 0,
-                'updated_at'  => now(),
-            ]);
-        } else {
-            // Use DB::statement for atomic increment to prevent race conditions
-            DB::statement(
-                "UPDATE customer_account_balances SET {$column} = {$column} + ?, updated_at = now() WHERE customer_id = ?",
-                [$delta, $payment->customer_id]
-            );
-        }
+        DB::statement(
+            "UPDATE customer_account_balances SET {$column} = {$column} + ?, updated_at = now() WHERE customer_id = ?",
+            [$delta, $payment->customer_id]
+        );
     }
 }

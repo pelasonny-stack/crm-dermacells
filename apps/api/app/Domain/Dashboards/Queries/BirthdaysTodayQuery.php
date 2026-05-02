@@ -26,14 +26,13 @@ final class BirthdaysTodayQuery
 
         return DB::table('customer_contacts')
             ->join('customers', 'customers.id', '=', 'customer_contacts.customer_id')
-            ->where('customers.seller_id', $sellerId)
+            ->where('customers.assigned_seller_id', $sellerId)
             ->whereNotNull('customer_contacts.birthday')
             ->whereRaw('EXTRACT(month FROM customer_contacts.birthday) = ?', [$month])
             ->whereRaw('EXTRACT(day FROM customer_contacts.birthday) = ?', [$day])
             ->get([
                 'customer_contacts.id',
-                'customer_contacts.first_name',
-                'customer_contacts.last_name',
+                'customer_contacts.full_name',
                 'customer_contacts.phone',
                 'customer_contacts.email',
                 'customers.id as customer_id',

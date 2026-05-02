@@ -12,6 +12,7 @@ use App\Models\Sale;
 use App\Models\User;
 use App\Models\Zone;
 use App\Models\PaymentTerm;
+use Illuminate\Support\Str;
 
 /**
  * Phase 7 — RegisterPaymentTest
@@ -19,6 +20,14 @@ use App\Models\PaymentTerm;
  * Covers happy-path registration for each payment medium, and verifies
  * that account balance is updated correctly on each creation.
  */
+
+/**
+ * Return a fresh UUID v4 for the Idempotency-Key header required by POST /payments.
+ */
+function idempotencyHeader(): array
+{
+    return ['Idempotency-Key' => Str::uuid()->toString()];
+}
 
 beforeEach(function (): void {
     $this->zone         = Zone::factory()->create(['distributor_id' => null]);
@@ -45,7 +54,7 @@ it('seller can register a transfer payment (transfer_dermacells)', function (): 
     $method = PaymentMethod::where('code', 'transfer_dermacells')->first();
 
     $response = $this->actingAs($this->seller, 'sanctum')
-        ->postJson('/api/v1/payments', [
+        ->withHeaders(idempotencyHeader())->postJson('/api/v1/payments', [
             'sale_id'           => $this->sale->id,
             'payment_method_id' => $method->id,
             'amount'            => '50000',
@@ -65,7 +74,7 @@ it('seller can register a credit card payment with installments', function (): v
     $method = PaymentMethod::where('code', 'credit_card')->first();
 
     $response = $this->actingAs($this->seller, 'sanctum')
-        ->postJson('/api/v1/payments', [
+        ->withHeaders(idempotencyHeader())->postJson('/api/v1/payments', [
             'sale_id'           => $this->sale->id,
             'payment_method_id' => $method->id,
             'amount'            => '75000',
@@ -84,7 +93,7 @@ it('seller can register a cheque payment with all required check fields', functi
     $method = PaymentMethod::where('code', 'check')->first();
 
     $response = $this->actingAs($this->seller, 'sanctum')
-        ->postJson('/api/v1/payments', [
+        ->withHeaders(idempotencyHeader())->postJson('/api/v1/payments', [
             'sale_id'           => $this->sale->id,
             'payment_method_id' => $method->id,
             'amount'            => '30000',
@@ -107,7 +116,7 @@ it('cash destination is auto-resolved to dermacells for zona directa', function 
     $method = PaymentMethod::where('code', 'cash')->first();
 
     $response = $this->actingAs($this->seller, 'sanctum')
-        ->postJson('/api/v1/payments', [
+        ->withHeaders(idempotencyHeader())->postJson('/api/v1/payments', [
             'sale_id'           => $this->sale->id,
             'payment_method_id' => $method->id,
             'amount'            => '20000',
@@ -146,7 +155,7 @@ it('cash destination is auto-resolved to distributor when zone has distributor',
     $method = PaymentMethod::where('code', 'cash')->first();
 
     $response = $this->actingAs($this->seller, 'sanctum')
-        ->postJson('/api/v1/payments', [
+        ->withHeaders(idempotencyHeader())->postJson('/api/v1/payments', [
             'sale_id'           => $sale->id,
             'payment_method_id' => $method->id,
             'amount'            => '20000',
@@ -166,7 +175,7 @@ it('account balance is updated after payment is registered', function (): void {
     $method = PaymentMethod::where('code', 'transfer_dermacells')->first();
 
     $this->actingAs($this->seller, 'sanctum')
-        ->postJson('/api/v1/payments', [
+        ->withHeaders(idempotencyHeader())->postJson('/api/v1/payments', [
             'sale_id'           => $this->sale->id,
             'payment_method_id' => $method->id,
             'amount'            => '50000',
@@ -186,7 +195,7 @@ it('returns 422 when transfer_dermacells is missing reference field', function (
     $method = PaymentMethod::where('code', 'transfer_dermacells')->first();
 
     $response = $this->actingAs($this->seller, 'sanctum')
-        ->postJson('/api/v1/payments', [
+        ->withHeaders(idempotencyHeader())->postJson('/api/v1/payments', [
             'sale_id'           => $this->sale->id,
             'payment_method_id' => $method->id,
             'amount'            => '50000',
@@ -202,7 +211,7 @@ it('returns 422 when cheque is missing check_number', function (): void {
     $method = PaymentMethod::where('code', 'check')->first();
 
     $response = $this->actingAs($this->seller, 'sanctum')
-        ->postJson('/api/v1/payments', [
+        ->withHeaders(idempotencyHeader())->postJson('/api/v1/payments', [
             'sale_id'           => $this->sale->id,
             'payment_method_id' => $method->id,
             'amount'            => '30000',
@@ -218,7 +227,7 @@ it('advance payment is registered with is_advance flag', function (): void {
     $method = PaymentMethod::where('code', 'cash')->first();
 
     $this->actingAs($this->seller, 'sanctum')
-        ->postJson('/api/v1/payments', [
+        ->withHeaders(idempotencyHeader())->postJson('/api/v1/payments', [
             'sale_id'           => $this->sale->id,
             'payment_method_id' => $method->id,
             'amount'            => '10000',

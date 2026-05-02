@@ -36,8 +36,14 @@ class AlertsController extends Controller
      */
     public function me(Request $request): JsonResponse
     {
-        $query = Alert::forUser((string) $request->user()->getKey())
-            ->orderByDesc('created_at');
+        $user  = $request->user();
+        $query = Alert::query()->orderByDesc('created_at');
+
+        // Directors see all alerts (RLS also allows it via alerts_director_all policy).
+        // Sellers and Distributors see only their own alerts.
+        if ($user->role !== UserRole::Director) {
+            $query->forUser((string) $user->getKey());
+        }
 
         if ($request->query('delivered') === 'false') {
             $query->undelivered();

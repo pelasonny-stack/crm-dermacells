@@ -185,20 +185,20 @@ final class CustomerContextBuilder
         $rows = DB::table('whatsapp_messages as m')
             ->join('whatsapp_threads as t', 't.id', '=', 'm.thread_id')
             ->where('t.customer_id', $customerId)
-            ->orderByDesc('m.created_at')
+            ->orderByDesc('m.sent_at')
             ->limit(10)
             ->get([
                 'm.id',
                 'm.direction',
                 'm.body',
-                'm.created_at',
+                'm.sent_at',
             ]);
 
         return $rows->map(static fn ($r) => [
             'id'         => $r->id,
             'direction'  => $r->direction,
             'body'       => $r->body,
-            'created_at' => (string) $r->created_at,
+            'created_at' => (string) $r->sent_at,
         ])->all();
     }
 

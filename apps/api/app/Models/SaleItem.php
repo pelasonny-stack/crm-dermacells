@@ -6,7 +6,9 @@ namespace App\Models;
 
 use App\Casts\MoneyCast;
 use App\Domain\Audit\Concerns\Auditable;
+use Database\Factories\SaleItemFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -31,7 +33,8 @@ use Illuminate\Support\Carbon;
  */
 class SaleItem extends Model
 {
-    use Auditable, HasUuids;
+    /** @use HasFactory<SaleItemFactory> */
+    use Auditable, HasFactory, HasUuids;
 
     protected $fillable = [
         'sale_id',

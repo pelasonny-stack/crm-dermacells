@@ -42,6 +42,21 @@ class SaleFactory extends Factory
         ];
     }
 
+    public function configure(): static
+    {
+        return $this->afterMaking(function (Sale $sale): void {
+            // ARS sales require an exchange_rate_id (DB constraint).
+            // Auto-create a rate record when the factory produces an ARS sale
+            // without one being explicitly provided.
+            if ($sale->currency === 'ARS' && $sale->exchange_rate_id === null) {
+                $rate = ExchangeRate::factory()->create([
+                    'rate_ars_per_usd' => '1000.000000',
+                ]);
+                $sale->exchange_rate_id = $rate->id;
+            }
+        });
+    }
+
     public function draft(): static
     {
         return $this->state(['status' => SaleStatus::Draft]);
@@ -68,11 +83,16 @@ class SaleFactory extends Factory
 
     public function inArs(): static
     {
-        return $this->state([
-            'currency'       => 'ARS',
-            'total_currency' => 'ARS',
-            'total_amount'   => '675000.0000',
-        ]);
+        return $this->state(function () {
+            return [
+                'currency'         => 'ARS',
+                'total_currency'   => 'ARS',
+                'total_amount'     => '675000.0000',
+                'exchange_rate_id' => ExchangeRate::factory()->create([
+                    'rate_ars_per_usd' => '1000.000000',
+                ])->id,
+            ];
+        });
     }
 
     public function delegated(string $distributorId): static

@@ -82,8 +82,8 @@ class RecalculateDistributorAccountJob implements ShouldQueue, ShouldBeUnique
 
         // Set RLS context: the job runs with distributor role scope
         // so the account query scopes correctly within the transaction.
-        $this->setRlsContext($distributor->id, $distributor->role->value);
-
-        $service->recalculate($distributor);
+        $this->withRlsContext($distributor->id, $distributor->role->value, function () use ($service, $distributor): void {
+            $service->recalculate($distributor);
+        });
     }
 }

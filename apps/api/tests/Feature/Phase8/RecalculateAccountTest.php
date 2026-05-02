@@ -148,16 +148,18 @@ it('excludes cancelled and draft sales from balance and margin', function (): vo
 
     // Cancelled sale — should not count
     Sale::create([
-        'customer_id'      => $this->customer->id,
-        'seller_id'        => $this->seller->id,
-        'zone_id'          => $this->zone->id,
-        'status'           => SaleStatus::Cancelled,
-        'sale_date'        => today()->toDateString(),
-        'payment_terms_id' => $this->paymentTerms->id,
-        'currency'         => 'USD',
-        'total_amount'     => '5000.0000',
-        'total_currency'   => 'USD',
-        'delegated_delivery' => false,
+        'customer_id'         => $this->customer->id,
+        'seller_id'           => $this->seller->id,
+        'zone_id'             => $this->zone->id,
+        'status'              => SaleStatus::Cancelled,
+        'sale_date'           => today()->toDateString(),
+        'payment_terms_id'    => $this->paymentTerms->id,
+        'currency'            => 'USD',
+        'total_amount'        => '5000.0000',
+        'total_currency'      => 'USD',
+        'delegated_delivery'  => false,
+        'cancellation_reason' => 'test cancellation',
+        'cancelled_at'        => now(),
     ]);
 
     $account = $this->service->recalculate($this->distributor);

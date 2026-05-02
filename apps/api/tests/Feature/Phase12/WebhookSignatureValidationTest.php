@@ -43,10 +43,13 @@ it('returns 200 and dispatches job when signature is valid', function (): void {
         'entry'  => [],
     ]);
 
-    $response = $this->withHeaders([
-        'X-Hub-Signature-256' => makeSignature($body),
-        'Content-Type'        => 'application/json',
-    ])->call('POST', '/api/webhooks/whatsapp', [], [], [], [], $body);
+    $serverVars = [
+        'HTTP_X_HUB_SIGNATURE_256' => makeSignature($body),
+        'CONTENT_TYPE'             => 'application/json',
+        'CONTENT_LENGTH'           => strlen($body),
+    ];
+
+    $response = $this->call('POST', '/api/webhooks/whatsapp', [], [], [], $serverVars, $body);
 
     $response->assertStatus(200);
 

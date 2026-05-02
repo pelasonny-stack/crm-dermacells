@@ -40,27 +40,31 @@ final class ConfirmPartialReturnAction
      */
     public function execute(PartialReturn $return, User $director): PartialReturn
     {
+        if (! $return->isPending()) {
+            throw new InvalidArgumentException(
+                "Cannot confirm a partial return in status [{$return->status->value}]."
+            );
+        }
+
+        $sale = $return->sale;
+
+        // If invoice exists, transition to awaiting_credit_note and throw.
+        // This update must happen OUTSIDE the main transaction so it survives
+        // the exception-triggered rollback.
+        if ($sale->hasInvoice()) {
+            $return->update([
+                'status'       => PartialReturnStatus::AwaitingCreditNote,
+                'confirmed_by' => $director->id,
+                'confirmed_at' => now(),
+            ]);
+
+            throw new InvoiceNcRequiredException(
+                'Partial return confirmed but sale has an invoice. Issue a credit note in Xubio to complete the return.'
+            );
+        }
+
         return DB::transaction(function () use ($return, $director): PartialReturn {
-            if (! $return->isPending()) {
-                throw new InvalidArgumentException(
-                    "Cannot confirm a partial return in status [{$return->status->value}]."
-                );
-            }
-
             $sale = $return->sale;
-
-            // If invoice exists, block until NC is issued
-            if ($sale->hasInvoice()) {
-                $return->update([
-                    'status'       => PartialReturnStatus::AwaitingCreditNote,
-                    'confirmed_by' => $director->id,
-                    'confirmed_at' => now(),
-                ]);
-
-                throw new InvoiceNcRequiredException(
-                    'Partial return confirmed but sale has an invoice. Issue a credit note in Xubio to complete the return.'
-                );
-            }
 
             // No invoice: apply immediately
             $this->returnStockToSeller($return, $sale);

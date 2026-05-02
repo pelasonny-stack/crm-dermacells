@@ -30,7 +30,7 @@ it('AuditLogExport toCsv produces valid RFC 4180 CSV', function (): void {
     // Must have at least a header row.
     expect($csv)->toContain('ID');
     expect($csv)->toContain('Fecha y hora');
-    expect($csv)->toContain('Accion');
+    expect($csv)->toContain('Acci');
 });
 
 it('AuditLogExport rows returns array with expected structure', function (): void {

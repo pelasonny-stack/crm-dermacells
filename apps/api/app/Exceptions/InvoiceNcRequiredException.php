@@ -24,11 +24,6 @@ final class InvoiceNcRequiredException extends RuntimeException
         return 409;
     }
 
-    public function getCode(): int
-    {
-        return 409;
-    }
-
     /**
      * Machine-readable code for the API error response body.
      */

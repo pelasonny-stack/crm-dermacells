@@ -55,6 +55,10 @@ class MetaClient
      * Uses HMAC-SHA256 with WHATSAPP_APP_SECRET as the key and compares
      * using hash_equals() to prevent timing attacks.
      *
+     * Config is read lazily here (not cached in constructor) so that
+     * test-time Config::set() overrides take effect without needing to
+     * re-bind the singleton.
+     *
      * Returns false if the header is absent or the signature does not match.
      */
     public function verifyWebhookSignature(Request $request): bool
@@ -67,6 +71,7 @@ class MetaClient
 
         $receivedHex = substr((string) $header, strlen('sha256='));
 
+        // Read app_secret lazily so Config::set() in tests takes effect.
         $appSecret = (string) config('services.whatsapp.app_secret');
 
         $expectedHex = hash_hmac('sha256', $request->getContent(), $appSecret);

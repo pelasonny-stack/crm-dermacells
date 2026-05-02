@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\WhatsappThread;
@@ -44,6 +45,15 @@ class CustomerWhatsappController extends Controller
      */
     public function threads(Request $request, Customer $customer): JsonResponse
     {
+        $user = $request->user();
+
+        // Application-level access guard: sellers may only see threads for
+        // customers assigned to them. Directors and distributors are allowed
+        // by the broader RLS policies at the DB layer.
+        if ($user->role === UserRole::Seller && $customer->assigned_seller_id !== $user->id) {
+            return response()->json(['data' => [], 'meta' => ['customer_id' => $customer->id, 'total' => 0]]);
+        }
+
         $threads = WhatsappThread::where('customer_id', $customer->id)
             ->orderByDesc('last_message_at')
             ->get()

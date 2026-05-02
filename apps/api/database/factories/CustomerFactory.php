@@ -28,28 +28,15 @@ class CustomerFactory extends Factory
 {
     protected $model = Customer::class;
 
-    /**
-     * Pool of valid Argentine CUITs with correct modulo-11 checksums.
-     * Used in rotation to prevent UNIQUE constraint violations in test suites
-     * that create multiple customers.
-     *
-     * @var list<string>
-     */
-    private static array $cuitPool = [
-        '20123456789', // Checksum: 9 — valid
-        '23456789012', // Checksum: 2 — valid
-        '27345678901', // Checksum: 1 — valid
-        '30123456789', // Checksum: 9 — valid (Persona Jurídica prefix)
-        '20987654329', // valid
-    ];
-
-    /** @var int Rotation index into $cuitPool. */
-    private static int $cuitIndex = 0;
+    /** @var int Counter to generate unique CUITs per test run. */
+    private static int $cuitCounter = 100000000;
 
     public function definition(): array
     {
-        $cuit = self::$cuitPool[self::$cuitIndex % count(self::$cuitPool)];
-        self::$cuitIndex++;
+        // Generate unique 11-digit CUIT strings using a monotonically increasing
+        // counter prefixed with '20' (natural-person prefix). The DB only checks
+        // CHAR(11) UNIQUE — no modulo-11 checksum constraint exists.
+        $cuit = '20' . str_pad((string) self::$cuitCounter++, 9, '0', STR_PAD_LEFT);
 
         return [
             'first_name'               => $this->faker->firstName(),

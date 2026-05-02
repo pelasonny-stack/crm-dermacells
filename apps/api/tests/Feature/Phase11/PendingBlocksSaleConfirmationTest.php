@@ -108,7 +108,9 @@ it('sale can be confirmed after authorization is approved', function (): void {
 
     // Mock stock reservation to avoid stock-not-found errors in this test
     $this->mock(ReserveStockOnSaleConfirmAction::class, function ($mock): void {
-        $mock->shouldReceive('execute')->once()->andReturn(null);
+        $mock->shouldReceive('execute')->once()->andReturn(
+            new \App\Models\StockMovement()
+        );
     });
 
     // Approve the request
@@ -125,7 +127,9 @@ it('sale can be confirmed after authorization is approved', function (): void {
 it('sale with no authorization requests can be confirmed normally', function (): void {
     // No authorizations linked to this sale
     $this->mock(ReserveStockOnSaleConfirmAction::class, function ($mock): void {
-        $mock->shouldReceive('execute')->once()->andReturn(null);
+        $mock->shouldReceive('execute')->once()->andReturn(
+            new \App\Models\StockMovement()
+        );
     });
 
     $response = $this->actingAs($this->seller, 'sanctum')
@@ -150,7 +154,9 @@ it('rejected authorization does not block sale confirmation', function (): void 
     ]);
 
     $this->mock(ReserveStockOnSaleConfirmAction::class, function ($mock): void {
-        $mock->shouldReceive('execute')->once()->andReturn(null);
+        $mock->shouldReceive('execute')->once()->andReturn(
+            new \App\Models\StockMovement()
+        );
     });
 
     $response = $this->actingAs($this->seller, 'sanctum')

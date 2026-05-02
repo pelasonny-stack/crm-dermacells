@@ -124,10 +124,11 @@ it('expired idempotency keys are treated as non-existent', function (): void {
         'expires_at'        => now()->subHours(1), // expired
     ]);
 
+
     // Request should be treated as fresh (expired record deleted, request processed)
     $response = $this->actingAs($this->seller, 'sanctum')
         ->postJson('/api/v1/sales', $this->validPayload, ['Idempotency-Key' => $key]);
 
-    // Expired record should be gone
+    // Expired record should be gone (deleted by the SQL-level delete in middleware)
     expect(IdempotencyKey::where('key', $key)->where('expires_at', '<', now())->count())->toBe(0);
 });

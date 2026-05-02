@@ -19,11 +19,13 @@ class PaymentFactory extends Factory
 
     public function definition(): array
     {
+        $sale = Sale::factory()->create();
+
         return [
-            'sale_id'           => Sale::factory(),
-            'customer_id'       => null, // resolved from sale in real usage
+            'sale_id'           => $sale->id,
+            'customer_id'       => $sale->customer_id,
             'payment_method_id' => PaymentMethod::factory(),
-            'amount_amount'     => $this->faker->randomFloat(4, 100, 5000),
+            'amount_amount'     => number_format($this->faker->randomFloat(2, 100, 5000), 4, '.', ''),
             'amount_currency'   => 'ARS',
             'exchange_rate_id'  => null,
             'is_advance'        => false,

@@ -29,12 +29,12 @@ final class MonthlySalesProgressQuery
             ->join('sale_items', 'sale_items.sale_id', '=', 'sales.id')
             ->where('sales.seller_id', $sellerId)
             ->where('sales.status', 'delivered')
-            ->whereBetween('sales.delivered_at', [$start . ' 00:00:00', $end . ' 23:59:59'])
+            ->whereBetween('sales.sale_date', [$start, $end])
             ->selectRaw('
                 COUNT(DISTINCT sales.id) AS sale_count,
                 SUM(sales.total_amount)  AS total_amount,
                 MAX(sales.currency)      AS currency,
-                SUM(sale_items.boxes)    AS total_boxes
+                SUM(sale_items.quantity_boxes)    AS total_boxes
             ')
             ->first();
 
@@ -59,10 +59,10 @@ final class MonthlySalesProgressQuery
         $row = DB::table('sales')
             ->join('sale_items', 'sale_items.sale_id', '=', 'sales.id')
             ->where('sales.status', 'delivered')
-            ->whereBetween('sales.delivered_at', [$start . ' 00:00:00', $end . ' 23:59:59'])
+            ->whereBetween('sales.sale_date', [$start, $end])
             ->selectRaw('
                 COUNT(DISTINCT sales.id) AS sale_count,
-                SUM(sale_items.boxes)    AS total_boxes,
+                SUM(sale_items.quantity_boxes)    AS total_boxes,
                 SUM(sales.total_amount)  AS total_amount
             ')
             ->first();

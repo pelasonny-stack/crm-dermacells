@@ -62,7 +62,11 @@ final class AdminStepUpRequired
             // Store intended URL so we can redirect back after step-up.
             $request->session()->put('admin_step_up_intended', $request->fullUrl());
 
-            return redirect()->route('admin.step-up');
+            try {
+                return redirect()->route('admin.step-up');
+            } catch (\Symfony\Component\Routing\Exception\RouteNotFoundException|\Illuminate\Routing\Exceptions\UrlGenerationException $e) {
+                return redirect('/admin/step-up');
+            }
         }
 
         return $next($request);

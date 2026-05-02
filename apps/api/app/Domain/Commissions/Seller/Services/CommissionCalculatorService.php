@@ -92,7 +92,7 @@ final class CommissionCalculatorService
         // Excludes reversed=true payments (§12.2).
         //
         // NOTE: Phase 7 payments table is assumed to exist with the shape:
-        //   payments.id, payments.sale_id, payments.amount, payments.currency,
+        //   payments.id, payments.sale_id, payments.amount_amount, payments.amount_currency,
         //   payments.payment_date, payments.exchange_rate_id, payments.is_advance,
         //   payments.reversed
         // sales.seller_id links each payment to the Vendedor.
@@ -108,8 +108,8 @@ final class CommissionCalculatorService
             ->where('payments.reversed', false)
             ->select([
                 'payments.id',
-                'payments.amount',
-                'payments.currency',
+                'payments.amount_amount as amount',
+                'payments.amount_currency as currency',
                 'payments.payment_date',
                 'payments.is_advance',
                 'exchange_rates.rate_ars_per_usd',

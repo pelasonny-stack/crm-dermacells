@@ -67,9 +67,8 @@ it('Director bulk-reassigns 5 clients and audit_log has 5 rows', function (): vo
 
     // audit_log should have entries for the 5 updated customer rows.
     $auditRows = DB::table('audit_log')
-        ->where('table_name', 'customers')
-        ->where('action', 'updated')
-        ->whereIn('record_id', $customerIds)
+        ->where('entity_type', 'customers')
+        ->whereIn('entity_id', $customerIds)
         ->count();
 
     expect($auditRows)->toBeGreaterThanOrEqual(5);
@@ -84,18 +83,24 @@ it('open sales remain under original Vendedor after reassignment', function (): 
 
     // Create an open (draft) sale for the customer under fromSeller.
     // Using DB insert directly to avoid needing SaleFactory full chain.
+    // Resolve mandatory FK columns from seeded/factory data.
+    $zone          = Zone::factory()->create();
+    $paymentTerms  = \App\Models\PaymentTerm::factory()->create();
+
     $saleId = (string) \Illuminate\Support\Str::uuid();
     DB::table('sales')->insert([
-        'id'                  => $saleId,
-        'customer_id'         => $customer->id,
-        'seller_id'           => $fromSeller->id,
-        'status'              => 'draft',
-        'currency'            => 'ARS',
-        'total_amount'        => '1500.0000',
-        'total_currency'      => 'ARS',
-        'closing_exchange_rate_id' => null,
-        'created_at'          => now(),
-        'updated_at'          => now(),
+        'id'               => $saleId,
+        'customer_id'      => $customer->id,
+        'seller_id'        => $fromSeller->id,
+        'zone_id'          => $zone->id,
+        'payment_terms_id' => $paymentTerms->id,
+        'status'           => 'draft',
+        'sale_date'        => now()->toDateString(),
+        'currency'         => 'ARS',
+        'total_amount'     => '1500.0000',
+        'total_currency'   => 'ARS',
+        'created_at'       => now(),
+        'updated_at'       => now(),
     ]);
 
     $this->actingAs($director);

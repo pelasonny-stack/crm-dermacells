@@ -59,7 +59,8 @@ final class ReversePaymentAction
         // before calling execute() when the sale has an invoice without a matching NC.
 
         return DB::transaction(function () use ($payment, $actor, $reason): Payment {
-            $payment->lockForUpdate()->refresh();
+            Payment::lockForUpdate()->find($payment->id);
+            $payment->refresh();
 
             // Re-check inside the lock to prevent double-reversal race
             if ($payment->reversed) {

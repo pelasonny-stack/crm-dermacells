@@ -12,6 +12,7 @@ use App\Models\PaymentTerm;
 use App\Models\Sale;
 use App\Models\User;
 use App\Models\Zone;
+use Illuminate\Support\Str;
 
 /**
  * Phase 7 — DualCurrencyAccountTest
@@ -51,7 +52,7 @@ it('ARS payment increments only balance_ars, not balance_usd', function (): void
     ]);
 
     $this->actingAs($this->seller, 'sanctum')
-        ->postJson('/api/v1/payments', [
+        ->withHeaders(['Idempotency-Key' => Str::uuid()->toString()])->postJson('/api/v1/payments', [
             'sale_id'           => $sale->id,
             'payment_method_id' => $this->arsMethod->id,
             'amount'            => '50000',
@@ -79,7 +80,7 @@ it('USD payment increments only balance_usd, not balance_ars', function (): void
     ]);
 
     $this->actingAs($this->seller, 'sanctum')
-        ->postJson('/api/v1/payments', [
+        ->withHeaders(['Idempotency-Key' => Str::uuid()->toString()])->postJson('/api/v1/payments', [
             'sale_id'           => $sale->id,
             'payment_method_id' => $this->usdMethod->id,
             'amount'            => '750',
@@ -120,7 +121,7 @@ it('multiple payments in different currencies accumulate independently', functio
 
     $actor = $this->actingAs($this->seller, 'sanctum');
 
-    $actor->postJson('/api/v1/payments', [
+    $actor->withHeaders(['Idempotency-Key' => Str::uuid()->toString()])->postJson('/api/v1/payments', [
         'sale_id'           => $arsSale->id,
         'payment_method_id' => $this->arsMethod->id,
         'amount'            => '30000',
@@ -128,7 +129,7 @@ it('multiple payments in different currencies accumulate independently', functio
         'payment_date'      => '2026-05-08',
     ])->assertStatus(201);
 
-    $actor->postJson('/api/v1/payments', [
+    $actor->withHeaders(['Idempotency-Key' => Str::uuid()->toString()])->postJson('/api/v1/payments', [
         'sale_id'           => $usdSale->id,
         'payment_method_id' => $this->usdMethod->id,
         'amount'            => '500',
@@ -145,12 +146,10 @@ it('multiple payments in different currencies accumulate independently', functio
 
 it('GET /customers/{id}/account-balance returns separate ARS and USD balances', function (): void {
     // Seed a balance row directly to avoid dependency on payment registration in this test
-    CustomerAccountBalance::create([
-        'customer_id' => $this->customer->id,
-        'balance_ars' => '25000.0000',
-        'balance_usd' => '300.0000',
-        'updated_at'  => now(),
-    ]);
+    CustomerAccountBalance::updateOrCreate(
+        ['customer_id' => $this->customer->id],
+        ['balance_ars' => '25000.0000', 'balance_usd' => '300.0000', 'updated_at' => now()],
+    );
 
     $response = $this->actingAs($this->seller, 'sanctum')
         ->getJson("/api/v1/customers/{$this->customer->id}/account-balance");

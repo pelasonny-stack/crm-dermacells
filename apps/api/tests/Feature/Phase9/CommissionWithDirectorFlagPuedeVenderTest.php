@@ -19,7 +19,9 @@ declare(strict_types=1);
 
 use App\Domain\Commissions\Seller\Services\CommissionCalculatorService;
 use App\Models\CommissionTier;
+use App\Models\Customer;
 use App\Models\ExchangeRate;
+use App\Models\PaymentMethod;
 use App\Models\Sale;
 use App\Models\User;
 use App\Models\Zone;
@@ -62,17 +64,23 @@ it('Director with can_sell=true gets zero commission even when payments exist', 
     ]);
 
     // Insert a large payment that would reach the 15% tier
+    $paymentMethod = PaymentMethod::factory()->create();
+    $customer      = Customer::factory()->create();
+    $recorder      = User::factory()->create();
     DB::table('payments')->insert([
-        'id'               => Str::uuid()->toString(),
-        'sale_id'          => $sale->id,
-        'amount'           => '50000.0000',
-        'currency'         => 'USD',
-        'payment_date'     => '2026-05-15',
-        'exchange_rate_id' => $rate->id,
-        'is_advance'       => false,
-        'reversed'         => false,
-        'created_at'       => now(),
-        'updated_at'       => now(),
+        'id'                => Str::uuid()->toString(),
+        'sale_id'           => $sale->id,
+        'customer_id'       => $customer->id,
+        'payment_method_id' => $paymentMethod->id,
+        'amount_amount'     => '50000.0000',
+        'amount_currency'   => 'USD',
+        'payment_date'      => '2026-05-15',
+        'exchange_rate_id'  => $rate->id,
+        'is_advance'        => false,
+        'reversed'          => false,
+        'recorded_by'       => $recorder->id,
+        'created_at'        => now(),
+        'updated_at'        => now(),
     ]);
 
     $tiers  = CommissionTier::activeOn($month)->get();

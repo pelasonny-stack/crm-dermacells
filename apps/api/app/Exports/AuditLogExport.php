@@ -135,19 +135,19 @@ final class AuditLogExport
     private function query(): Builder
     {
         $query = DB::table('audit_log as al')
-            ->leftJoin('users as u', 'u.id', '=', 'al.user_id')
+            ->leftJoin('users as u', 'u.id', '=', 'al.actor_user_id')
             ->select([
                 'al.id',
                 'al.occurred_at',
-                DB::raw("COALESCE(u.full_name, al.user_id::TEXT) AS user_name"),
+                DB::raw("COALESCE(u.full_name, al.actor_user_id::TEXT) AS user_name"),
                 'u.email AS user_email',
-                'al.action',
-                'al.table_name',
-                'al.record_id',
+                'al.section AS action',
+                'al.entity_type AS table_name',
+                'al.entity_id AS record_id',
                 'al.field_name',
                 'al.old_value',
                 'al.new_value',
-                'al.hmac_hash',
+                'al.row_hash AS hmac_hash',
             ])
             ->orderBy('al.occurred_at', 'desc')
             ->limit(50_000); // Safety cap — large exports should go async
@@ -161,15 +161,15 @@ final class AuditLogExport
         }
 
         if (! empty($this->filters['user_id'])) {
-            $query->where('al.user_id', $this->filters['user_id']);
+            $query->where('al.actor_user_id', $this->filters['user_id']);
         }
 
         if (! empty($this->filters['table_name'])) {
-            $query->where('al.table_name', $this->filters['table_name']);
+            $query->where('al.entity_type', $this->filters['table_name']);
         }
 
         if (! empty($this->filters['action'])) {
-            $query->where('al.action', $this->filters['action']);
+            $query->where('al.section', $this->filters['action']);
         }
 
         return $query;

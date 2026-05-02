@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\DB;
  * Throws StockInsufficientException if the seller does not have enough available
  * boxes — this is the hard block on Confirmar (§4.5).
  */
-final class ReserveStockOnSaleConfirmAction
+class ReserveStockOnSaleConfirmAction
 {
     /**
      * @param  string $productId    UUID of the product.

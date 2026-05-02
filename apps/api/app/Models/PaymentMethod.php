@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Database\Factories\PaymentMethodFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -24,7 +26,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class PaymentMethod extends Model
 {
-    use HasUuids;
+    /** @use HasFactory<PaymentMethodFactory> */
+    use HasFactory, HasUuids;
 
     // Payment methods are static config — no Auditable needed (seeded, not user-edited)
     protected $fillable = [

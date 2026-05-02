@@ -6,6 +6,7 @@ namespace App\Domain\Dashboards\Queries;
 
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Sums AI usage (tokens + cost) for the current calendar month.
@@ -24,16 +25,20 @@ final class AiUsageMonthQuery
         $start = $month->copy()->startOfMonth()->toDateTimeString();
         $end   = $month->copy()->endOfMonth()->toDateTimeString();
 
+        if (! Schema::hasTable('ai_usage') || ! Schema::hasTable('ai_settings')) {
+            return ['tokens' => 0, 'cost_usd' => '0.0000', 'active' => false];
+        }
+
         try {
             $row = DB::table('ai_usage')
                 ->whereBetween('created_at', [$start, $end])
                 ->selectRaw('
-                    SUM(total_tokens) AS total_tokens,
-                    SUM(cost_usd)     AS total_cost_usd
+                    SUM(total_tokens)        AS total_tokens,
+                    SUM(cost_estimate_usd)   AS total_cost_usd
                 ')
                 ->first();
 
-            $active = (bool) DB::table('ai_settings')->value('is_active');
+            $active = (bool) DB::table('ai_settings')->value('global_enabled');
 
             return [
                 'tokens'   => (int) ($row->total_tokens ?? 0),
@@ -41,7 +46,6 @@ final class AiUsageMonthQuery
                 'active'   => $active,
             ];
         } catch (\Throwable) {
-            // Phase 13 tables may not exist in test environments.
             return ['tokens' => 0, 'cost_usd' => '0.0000', 'active' => false];
         }
     }

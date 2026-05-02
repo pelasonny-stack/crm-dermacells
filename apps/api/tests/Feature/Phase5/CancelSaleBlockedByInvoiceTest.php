@@ -31,10 +31,15 @@ it('returns 409 INVOICE_NC_REQUIRED when sale has an invoice — seller attempt'
     $sale = $this->partialMock(Sale::class, function ($mock): void {
         $mock->makePartial();
         $mock->shouldReceive('hasInvoice')->andReturn(true);
-        $mock->status   = SaleStatus::Confirmed;
-        $mock->seller_id = $this->seller->id;
-        $mock->zone_id   = $this->zone->id;
+        $mock->shouldReceive('refresh')->andReturnSelf();
+        $mock->shouldReceive('load')->andReturnSelf();
+        $mock->shouldReceive('loadMissing')->andReturnSelf();
     });
+    $sale->forceFill([
+        'status'    => SaleStatus::Confirmed,
+        'seller_id' => $this->seller->id,
+        'zone_id'   => $this->zone->id,
+    ]);
 
     // Use action directly to avoid route-model-binding complications with mocked model
     $action = app(\App\Actions\Sales\CancelSaleAction::class);
@@ -47,10 +52,15 @@ it('returns 409 INVOICE_NC_REQUIRED when sale has an invoice — director attemp
     $sale = $this->partialMock(Sale::class, function ($mock): void {
         $mock->makePartial();
         $mock->shouldReceive('hasInvoice')->andReturn(true);
-        $mock->status    = SaleStatus::Confirmed;
-        $mock->seller_id = $this->seller->id;
-        $mock->zone_id   = $this->zone->id;
+        $mock->shouldReceive('refresh')->andReturnSelf();
+        $mock->shouldReceive('load')->andReturnSelf();
+        $mock->shouldReceive('loadMissing')->andReturnSelf();
     });
+    $sale->forceFill([
+        'status'    => SaleStatus::Confirmed,
+        'seller_id' => $this->seller->id,
+        'zone_id'   => $this->zone->id,
+    ]);
 
     $action = app(\App\Actions\Sales\CancelSaleAction::class);
 
@@ -85,9 +95,11 @@ it('controller maps InvoiceNcRequiredException to 409 with INVOICE_NC_REQUIRED c
 
     // Inject a sale whose hasInvoice() returns true
     $saleWithInvoice = new class ($sale->getAttributes()) extends Sale {
+        protected $table = 'sales';
         public function hasInvoice(): bool { return true; }
-        public function lockForUpdate(): static { return $this; }
         public function refresh(): static { return $this; }
+        public function load($relations): static { return $this; }
+        public function loadMissing($relations): static { return $this; }
     };
     $saleWithInvoice->exists = true;
 

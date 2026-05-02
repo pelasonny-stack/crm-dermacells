@@ -7,8 +7,10 @@ namespace App\Models;
 use App\Casts\MoneyCast;
 use App\Domain\Audit\Concerns\Auditable;
 use App\Enums\SaleStatus;
+use Database\Factories\SaleFactory;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -53,7 +55,8 @@ use Illuminate\Support\Carbon;
  */
 class Sale extends Model
 {
-    use Auditable, HasUuids;
+    /** @use HasFactory<SaleFactory> */
+    use Auditable, HasFactory, HasUuids;
 
     protected $fillable = [
         'customer_id',

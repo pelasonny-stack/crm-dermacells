@@ -57,7 +57,9 @@ final class OpenAIClient implements LLMClient
             );
         }
 
-        return $this->buildResponse($response->json(), $request, $latency, (string) $response->header('x-request-id'));
+        $requestId = $response->header('x-request-id') ?: null;
+
+        return $this->buildResponse($response->json(), $request, $latency, $requestId);
     }
 
     public function stream(LLMRequest $request): Generator

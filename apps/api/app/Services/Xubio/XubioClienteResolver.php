@@ -18,7 +18,7 @@ use App\Models\CustomerBillingEntity;
  * Lookup-or-create avoids duplicates when CUIT already exists in Xubio
  * (e.g., manually created by a Director in the Xubio UI).
  */
-final class XubioClienteResolver
+class XubioClienteResolver
 {
     public function __construct(
         private readonly XubioClient $xubio,

@@ -40,14 +40,14 @@ final class IntegrationStatusQuery
         }
 
         $last = DB::table('xubio_api_log')
-            ->where('response_status', '>=', 200)
-            ->where('response_status', '<', 300)
+            ->where('status_code', '>=', 200)
+            ->where('status_code', '<', 300)
             ->orderByDesc('created_at')
-            ->first(['created_at', 'endpoint', 'response_status']);
+            ->first(['created_at', 'endpoint', 'status_code']);
 
         $errors = (int) DB::table('xubio_api_log')
             ->where('created_at', '>=', now()->subDay())
-            ->where(fn ($q) => $q->where('response_status', '<', 200)->orWhere('response_status', '>=', 500))
+            ->where(fn ($q) => $q->where('status_code', '<', 200)->orWhere('status_code', '>=', 500))
             ->count();
 
         $total = (int) DB::table('xubio_api_log')
@@ -85,11 +85,11 @@ final class IntegrationStatusQuery
             return ['healthy' => null, 'detail' => 'ai_settings not found'];
         }
 
-        $settings = DB::table('ai_settings')->first(['is_active', 'provider', 'model']);
+        $settings = DB::table('ai_settings')->first(['global_enabled', 'provider', 'model']);
 
         return [
             'healthy'  => $settings !== null,
-            'active'   => (bool) ($settings?->is_active ?? false),
+            'active'   => (bool) ($settings?->global_enabled ?? false),
             'provider' => $settings?->provider,
             'model'    => $settings?->model,
         ];
@@ -103,12 +103,12 @@ final class IntegrationStatusQuery
         }
 
         $last = DB::table('whatsapp_messages')
-            ->orderByDesc('created_at')
-            ->first(['created_at', 'direction']);
+            ->orderByDesc('sent_at')
+            ->first(['sent_at', 'direction']);
 
         return [
             'healthy'      => $last !== null,
-            'last_message' => $last?->created_at,
+            'last_message' => $last?->sent_at,
         ];
     }
 
@@ -132,12 +132,6 @@ final class IntegrationStatusQuery
 
     private function tableExists(string $table): bool
     {
-        try {
-            DB::table($table)->limit(0)->get();
-
-            return true;
-        } catch (\Throwable) {
-            return false;
-        }
+        return \Illuminate\Support\Facades\Schema::hasTable($table);
     }
 }

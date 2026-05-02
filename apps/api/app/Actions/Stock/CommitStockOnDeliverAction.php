@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
  * The reserved amount was already deducted from available at reservation time;
  * here we subtract from the actual box count making the deduction permanent.
  */
-final class CommitStockOnDeliverAction
+class CommitStockOnDeliverAction
 {
     /**
      * @param  string $productId     UUID of the product.

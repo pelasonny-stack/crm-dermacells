@@ -9,7 +9,6 @@ use App\Models\PartialReturn;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\User;
-use Brick\Money\Money;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -52,8 +51,8 @@ final class InitiatePartialReturnAction
                 );
             }
 
-            // Compute refund amount
-            $refund = $this->computeRefund($saleItem, $quantityBoxes, $quantityUnits);
+            // Compute refund amount (returns BigDecimal amount string + currency code)
+            [$refundAmount, $refundCurrency] = $this->computeRefund($saleItem, $quantityBoxes, $quantityUnits);
 
             return PartialReturn::create([
                 'sale_id'      => $sale->id,
@@ -63,8 +62,8 @@ final class InitiatePartialReturnAction
                 'status'       => PartialReturnStatus::PendingDirectorConfirmation,
                 'quantity_boxes' => $quantityBoxes,
                 'quantity_units' => $quantityUnits,
-                'refund_amount'  => (string) $refund->getAmount(),
-                'refund_currency' => $refund->getCurrency()->getCurrencyCode(),
+                'refund_amount'  => $refundAmount,
+                'refund_currency' => $refundCurrency,
                 'reason'         => $data['reason'] ?? null,
                 'initiated_at'   => now(),
                 'confirmed_at'   => null,
@@ -75,26 +74,35 @@ final class InitiatePartialReturnAction
     /**
      * Proportional refund calculation.
      *
-     * unit_price covers one full box (units_per_box units).
-     * Loose units are priced at unit_price / units_per_box each.
+     * Uses BigDecimal directly to preserve the 4-decimal NUMERIC(18,4) precision.
+     * Returns [amountString, currencyCode] to bypass Money's currency-scale normalization.
+     *
+     * @return array{0: string, 1: string}  [amount with 4 decimals, currency code]
      */
     private function computeRefund(
         SaleItem $saleItem,
         int $quantityBoxes,
         int $quantityUnits,
-    ): Money {
-        $unitPrice = $saleItem->unit_price;
-        $currency  = $saleItem->unit_price_currency;
+    ): array {
+        $currency = $saleItem->unit_price_currency;
+        $scale    = 4; // NUMERIC(18,4)
 
-        $boxRefund  = $unitPrice->multipliedBy($quantityBoxes);
+        $unitPriceAmount = \Brick\Math\BigDecimal::of((string) $saleItem->unit_price_amount);
 
-        // Loose-unit price = unit_price / units_per_box (integer division safe here
-        // because we only return full units from a box whose price was set for the full box)
-        $unitsPerBox       = $saleItem->product?->units_per_box ?? 5;
-        $unitLooseRefund   = $quantityUnits > 0
-            ? $unitPrice->dividedBy($unitsPerBox, \Brick\Math\RoundingMode::HALF_UP)->multipliedBy($quantityUnits)
-            : Money::of(0, $currency);
+        $boxRefundAmount = $unitPriceAmount->multipliedBy($quantityBoxes)->toScale($scale);
 
-        return $boxRefund->plus($unitLooseRefund);
+        if ($quantityUnits === 0) {
+            return [(string) $boxRefundAmount, $currency];
+        }
+
+        $unitsPerBox     = $saleItem->product?->units_per_box ?? 5;
+        $looseUnitAmount = $unitPriceAmount
+            ->dividedBy($unitsPerBox, $scale, \Brick\Math\RoundingMode::HALF_UP)
+            ->multipliedBy($quantityUnits)
+            ->toScale($scale);
+
+        $total = $boxRefundAmount->plus($looseUnitAmount)->toScale($scale);
+
+        return [(string) $total, $currency];
     }
 }

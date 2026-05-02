@@ -60,17 +60,19 @@ final class IdempotencyKey
         $userId  = Auth::id();
         $bodyHash = $this->hashBody($request->getContent());
 
-        // 2. Look up existing record
+        // 2. Delete any expired records for this key first, then look up a live one
+        IdempotencyKeyModel::where('user_id', $userId)
+            ->where('key', $rawKey)
+            ->where('expires_at', '<', now())
+            ->delete();
+
         /** @var IdempotencyKeyModel|null $record */
         $record = IdempotencyKeyModel::where('user_id', $userId)
             ->where('key', $rawKey)
             ->first();
 
         if ($record) {
-            // Expired records are treated as non-existent (let the request through)
-            if ($record->isExpired()) {
-                $record->delete();
-            } elseif ($record->request_body_hash !== $bodyHash) {
+            if ($record->request_body_hash !== $bodyHash) {
                 // b. Same key, different body → mismatch error
                 return $this->problem(
                     422,

@@ -49,7 +49,7 @@ final class CancelSaleAction
         return DB::transaction(function () use ($sale, $actor, $reason): Sale {
             $fromStatus = $sale->status;
 
-            $sale->lockForUpdate()->refresh();
+            $sale->refresh();
             $sale->load('items');
 
             // SaleTransitionGuard handles: invoice check, ownership, payments check

@@ -123,12 +123,16 @@ class PaymentController extends Controller
         ReversePaymentRequest $request,
         Payment $payment,
         ReversePaymentAction $action,
-    ): Response {
-        $action->execute(
-            payment: $payment,
-            actor: $request->user(),
-            reason: $request->input('reason'),
-        );
+    ): Response|JsonResponse {
+        try {
+            $action->execute(
+                payment: $payment,
+                actor: $request->user(),
+                reason: $request->input('reason'),
+            );
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage(), 'code' => 'INVALID_OPERATION'], 422);
+        }
 
         return response()->noContent();
     }
@@ -174,12 +178,16 @@ class PaymentController extends Controller
     ): JsonResponse {
         $sale = \App\Models\Sale::findOrFail($request->input('sale_id'));
 
-        $updated = $action->execute(
-            creditBalance: $creditBalance,
-            sale: $sale,
-            amount: $request->toMoney(),
-            actor: $request->user(),
-        );
+        try {
+            $updated = $action->execute(
+                creditBalance: $creditBalance,
+                sale: $sale,
+                amount: $request->toMoney(),
+                actor: $request->user(),
+            );
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage(), 'code' => 'INVALID_OPERATION'], 422);
+        }
 
         return response()->json([
             'id'                 => $updated->id,

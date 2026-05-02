@@ -6,6 +6,7 @@ namespace App\Domain\Dashboards\Queries;
 
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Portfolio health aggregations for the Director dashboard — §14.3.
@@ -25,21 +26,25 @@ final class PortfolioHealthQuery
     public function evolution(int $months = 12): Collection
     {
         // Read from materialized view — populated by Phase 14 refresh job.
-        try {
-            return DB::table('mv_portfolio_health_monthly')
-                ->orderByDesc('period_month')
-                ->limit($months)
-                ->get([
-                    'period_month as month',
-                    'active_count as active',
-                    'new_count as new',
-                    'lost_count as lost',
-                    'at_risk_count as at_risk',
-                ]);
-        } catch (\Throwable) {
-            // MV not yet populated — return empty; Phase 17 verification will confirm.
-            return collect();
+        // Guard with hasTable to avoid aborting the active PG transaction.
+        if (Schema::hasTable('mv_portfolio_health_monthly')) {
+            try {
+                return DB::table('mv_portfolio_health_monthly')
+                    ->orderByDesc('period_month')
+                    ->limit($months)
+                    ->get([
+                        'period_month as month',
+                        'active_count as active',
+                        'new_count as new',
+                        'lost_count as lost',
+                        'at_risk_count as at_risk',
+                    ]);
+            } catch (\Throwable) {
+                // MV exists but query failed.
+            }
         }
+
+        return collect();
     }
 
     /**
@@ -60,14 +65,14 @@ final class PortfolioHealthQuery
                     SELECT 1 FROM purchase_evolution_metrics m
                     WHERE m.customer_id = customers.id
                       AND m.evolution_state NOT IN (\'inactive\')
-                      AND m.period_end >= NOW() - INTERVAL \'90 days\'
+                      AND m.computed_at >= NOW() - INTERVAL \'90 days\'::interval
                 ) THEN 1 ELSE 0 END) AS active,
                 ROUND(
                     100.0 * SUM(CASE WHEN EXISTS (
                         SELECT 1 FROM purchase_evolution_metrics m
                         WHERE m.customer_id = customers.id
                           AND m.evolution_state NOT IN (\'inactive\')
-                          AND m.period_end >= NOW() - INTERVAL \'90 days\'
+                          AND m.computed_at >= NOW() - INTERVAL \'90 days\'::interval
                     ) THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0),
                     1
                 ) AS pct
@@ -86,7 +91,7 @@ final class PortfolioHealthQuery
     {
         return DB::table('purchase_evolution_metrics')
             ->join('customers', 'customers.id', '=', 'purchase_evolution_metrics.customer_id')
-            ->join('users', 'users.id', '=', 'customers.seller_id')
+            ->join('users', 'users.id', '=', 'customers.assigned_seller_id')
             ->join('zones', 'zones.id', '=', 'customers.zone_id')
             ->whereIn('purchase_evolution_metrics.evolution_state', ['inactive', 'decreasing'])
             ->orderByRaw(
@@ -126,7 +131,7 @@ final class PortfolioHealthQuery
                 customers.id AS customer_id,
                 customers.first_name,
                 customers.last_name,
-                SUM(sale_items.subtotal) AS total_volume,
+                SUM(sale_items.subtotal_amount) AS total_volume,
                 MAX(sales.currency) AS currency,
                 MAX(purchase_evolution_metrics.evolution_state) AS trend
             ')

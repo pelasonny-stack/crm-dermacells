@@ -59,13 +59,11 @@ beforeEach(function (): void {
         'recorded_by'       => $this->seller->id,
     ]);
 
-    // Seed the balance manually (normally created by AccountBalanceUpdater in observer)
-    CustomerAccountBalance::create([
-        'customer_id' => $this->customer->id,
-        'balance_ars' => '50000.0000',
-        'balance_usd' => '0.0000',
-        'updated_at'  => now(),
-    ]);
+    // Ensure balance row exists with correct values (observer may have already created it)
+    CustomerAccountBalance::updateOrCreate(
+        ['customer_id' => $this->customer->id],
+        ['balance_ars' => '50000.0000', 'balance_usd' => '0.0000', 'updated_at' => now()],
+    );
 });
 
 it('Director can reverse a payment with a valid reason', function (): void {

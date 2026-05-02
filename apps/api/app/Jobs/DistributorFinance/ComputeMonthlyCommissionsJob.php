@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Models\Zone;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -111,7 +112,7 @@ class ComputeMonthlyCommissionsJob implements ShouldQueue
     private function processZone(
         Zone $zone,
         CommissionAssignmentService $commissionService,
-        Carbon $period,
+        Carbon|CarbonImmutable $period,
         string $periodStart,
         string $periodEnd,
     ): void {

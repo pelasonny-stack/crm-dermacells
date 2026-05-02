@@ -40,7 +40,7 @@ final class DeliverSaleAction
     public function execute(Sale $sale, User $actor, ?string $note = null): Sale
     {
         return DB::transaction(function () use ($sale, $actor, $note): Sale {
-            $sale->lockForUpdate()->refresh();
+            $sale->refresh();
             $sale->load('items');
 
             // 1. State machine guard (includes delegated_delivery role check)

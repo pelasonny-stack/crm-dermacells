@@ -34,11 +34,11 @@ final class DuePaymentsWithinHoursQuery
             ])
             ->whereRaw(
                 'sales.total_amount > COALESCE((
-                    SELECT SUM(p.amount)
+                    SELECT SUM(p.amount_amount)
                     FROM payments p
                     WHERE p.sale_id = sales.id
                       AND p.reversed = false
-                      AND p.currency = sales.currency
+                      AND p.amount_currency = sales.currency
                 ), 0)'
             )
             ->orderBy('sales.due_date', 'asc')

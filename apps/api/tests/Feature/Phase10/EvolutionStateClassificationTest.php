@@ -163,6 +163,7 @@ it('does not override decreasing state with scheduled when scheduled_action is r
     ScheduledAction::factory()->create([
         'customer_id'    => $this->customer->id,
         'is_resolved'    => true,
+        'resolved_at'    => now()->subDay(),
         'scheduled_date' => now()->subDays(1)->toDateString(),
         'note'           => 'Done',
         'created_by'     => User::factory()->create(['role' => UserRole::Director])->id,

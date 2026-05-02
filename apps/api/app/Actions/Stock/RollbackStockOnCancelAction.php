@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\DB;
  * Single responsibility: atomic UPDATE on seller_stock (decrement reserved_boxes,
  * restoring the boxes to available) + INSERT a StockMovement('sale_cancel').
  */
-final class RollbackStockOnCancelAction
+class RollbackStockOnCancelAction
 {
     /**
      * @param  string $productId     UUID of the product.

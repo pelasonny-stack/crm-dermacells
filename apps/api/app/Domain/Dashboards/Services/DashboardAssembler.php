@@ -228,22 +228,26 @@ final class DashboardAssembler
      */
     private function directorPulseToday(): array
     {
-        try {
-            $row = DB::table('mv_director_pulse_today')
-                ->where('pulse_date', now()->toDateString())
-                ->first();
+        // Use Schema::hasTable to avoid querying a non-existent MV which would
+        // abort the active PostgreSQL transaction (SQLSTATE 25P02).
+        if (\Illuminate\Support\Facades\Schema::hasTable('mv_director_pulse_today')) {
+            try {
+                $row = DB::table('mv_director_pulse_today')
+                    ->where('pulse_date', now()->toDateString())
+                    ->first();
 
-            if ($row) {
-                return [
-                    'sales_count'   => (int) $row->sales_count,
-                    'sales_boxes'   => (int) $row->sales_boxes,
-                    'sales_amount'  => (string) $row->sales_amount,
-                    'cobros_ars'    => (string) $row->cobros_ars,
-                    'cobros_usd'    => (string) $row->cobros_usd,
-                ];
+                if ($row) {
+                    return [
+                        'sales_count'   => (int) $row->sales_count,
+                        'sales_boxes'   => (int) $row->sales_boxes,
+                        'sales_amount'  => (string) $row->sales_amount,
+                        'cobros_ars'    => (string) $row->cobros_ars,
+                        'cobros_usd'    => (string) $row->cobros_usd,
+                    ];
+                }
+            } catch (\Throwable) {
+                // MV exists but query failed.
             }
-        } catch (\Throwable) {
-            // MV not available yet.
         }
 
         // Live fallback
@@ -252,10 +256,10 @@ final class DashboardAssembler
         $sales = DB::table('sales')
             ->join('sale_items', 'sale_items.sale_id', '=', 'sales.id')
             ->where('sales.status', 'delivered')
-            ->whereDate('sales.delivered_at', $today)
+            ->whereDate('sales.sale_date', $today)
             ->selectRaw('
                 COUNT(DISTINCT sales.id) AS cnt,
-                SUM(sale_items.boxes) AS boxes,
+                SUM(sale_items.quantity_boxes) AS boxes,
                 SUM(sales.total_amount) AS amount
             ')
             ->first();
@@ -264,8 +268,8 @@ final class DashboardAssembler
             ->where('reversed', false)
             ->whereDate('payment_date', $today)
             ->selectRaw('
-                SUM(CASE WHEN currency = \'ARS\' THEN amount ELSE 0 END) AS ars,
-                SUM(CASE WHEN currency = \'USD\' THEN amount ELSE 0 END) AS usd
+                SUM(CASE WHEN amount_currency = \'ARS\' THEN amount_amount ELSE 0 END) AS ars,
+                SUM(CASE WHEN amount_currency = \'USD\' THEN amount_amount ELSE 0 END) AS usd
             ')
             ->first();
 
@@ -283,10 +287,10 @@ final class DashboardAssembler
     {
         $row = DB::table('seller_monthly_goals')
             ->where('seller_id', $sellerId)
-            ->where('period_month', $month->copy()->startOfMonth()->toDateString())
-            ->first(['goal_boxes']);
+            ->where('year_month', $month->copy()->startOfMonth()->toDateString())
+            ->first(['target_boxes']);
 
-        return ['target' => (int) ($row?->goal_boxes ?? 0), 'achieved' => 0];
+        return ['target' => (int) ($row?->target_boxes ?? 0), 'achieved' => 0];
     }
 
     /** @return array{al_dia:int, proximo_a_vencer:int, vencido:int} */
@@ -301,8 +305,8 @@ final class DashboardAssembler
             ->whereNotNull('due_date')
             ->whereRaw(
                 'total_amount > COALESCE((
-                    SELECT SUM(p.amount) FROM payments p
-                    WHERE p.sale_id = sales.id AND p.reversed = false AND p.currency = sales.currency
+                    SELECT SUM(p.amount_amount) FROM payments p
+                    WHERE p.sale_id = sales.id AND p.reversed = false AND p.amount_currency = sales.currency
                 ), 0)'
             )
             ->selectRaw("
@@ -323,7 +327,7 @@ final class DashboardAssembler
     private function sellerPendingAuthorizations(string $sellerId): array
     {
         return DB::table('authorization_requests')
-            ->where('requester_id', $sellerId)
+            ->where('requested_by', $sellerId)
             ->where('status', 'pending')
             ->get(['id', 'type', 'current_value', 'proposed_value', 'created_at'])
             ->map(fn ($r) => (array) $r)
@@ -354,14 +358,14 @@ final class DashboardAssembler
             ->join('zones', 'zones.id', '=', 'sales.zone_id')
             ->where('zones.distributor_id', $distId)
             ->where('sales.status', 'delivered')
-            ->where('sales.delivered_at', '>=', now()->subMonths(6)->startOfMonth())
+            ->where('sales.sale_date', '>=', now()->subMonths(6)->startOfMonth()->toDateString())
             ->selectRaw("
-                TO_CHAR(DATE_TRUNC('month', sales.delivered_at), 'YYYY-MM') AS month,
-                SUM(sale_items.boxes) AS boxes,
+                TO_CHAR(DATE_TRUNC('month', sales.sale_date), 'YYYY-MM') AS month,
+                SUM(sale_items.quantity_boxes) AS boxes,
                 SUM(sales.total_amount) AS amount
             ")
-            ->groupByRaw("DATE_TRUNC('month', sales.delivered_at)")
-            ->orderByRaw("DATE_TRUNC('month', sales.delivered_at) ASC")
+            ->groupByRaw("DATE_TRUNC('month', sales.sale_date)")
+            ->orderByRaw("DATE_TRUNC('month', sales.sale_date) ASC")
             ->get()
             ->map(fn ($r) => (array) $r)
             ->toArray();
@@ -378,8 +382,8 @@ final class DashboardAssembler
             ->where('payments.payment_date', '>=', now()->subMonths(6)->startOfMonth()->toDateString())
             ->selectRaw("
                 TO_CHAR(DATE_TRUNC('month', payments.payment_date::date), 'YYYY-MM') AS month,
-                SUM(CASE WHEN payments.currency = 'ARS' THEN payments.amount ELSE 0 END) AS ars,
-                SUM(CASE WHEN payments.currency = 'USD' THEN payments.amount ELSE 0 END) AS usd
+                SUM(CASE WHEN payments.amount_currency = 'ARS' THEN payments.amount_amount ELSE 0 END) AS ars,
+                SUM(CASE WHEN payments.amount_currency = 'USD' THEN payments.amount_amount ELSE 0 END) AS usd
             ")
             ->groupByRaw("DATE_TRUNC('month', payments.payment_date::date)")
             ->orderByRaw("DATE_TRUNC('month', payments.payment_date::date) ASC")
@@ -396,19 +400,17 @@ final class DashboardAssembler
             ->first([
                 'balance_ars',
                 'balance_usd',
-                'margin_ars',
-                'margin_usd',
-                'commissions_pending_ars',
-                'commissions_pending_usd',
+                'gross_margin_ars',
+                'gross_margin_usd',
             ]);
 
         return [
             'saldo_ars'       => number_format((float) ($account?->balance_ars ?? 0), 4, '.', ''),
             'saldo_usd'       => number_format((float) ($account?->balance_usd ?? 0), 4, '.', ''),
-            'margin_ars'      => number_format((float) ($account?->margin_ars ?? 0), 4, '.', ''),
-            'margin_usd'      => number_format((float) ($account?->margin_usd ?? 0), 4, '.', ''),
-            'commissions_ars' => number_format((float) ($account?->commissions_pending_ars ?? 0), 4, '.', ''),
-            'commissions_usd' => number_format((float) ($account?->commissions_pending_usd ?? 0), 4, '.', ''),
+            'margin_ars'      => number_format((float) ($account?->gross_margin_ars ?? 0), 4, '.', ''),
+            'margin_usd'      => number_format((float) ($account?->gross_margin_usd ?? 0), 4, '.', ''),
+            'commissions_ars' => '0.0000',
+            'commissions_usd' => '0.0000',
         ];
     }
 
@@ -417,9 +419,9 @@ final class DashboardAssembler
     {
         return DB::table('distributor_settlements')
             ->where('distributor_id', $distId)
-            ->orderByDesc('created_at')
+            ->orderByDesc('submitted_at')
             ->limit(5)
-            ->get(['id', 'amount', 'currency', 'status', 'created_at', 'confirmed_at'])
+            ->get(['id', 'amount_amount', 'amount_currency', 'status', 'submitted_at', 'confirmed_at'])
             ->map(fn ($r) => (array) $r)
             ->toArray();
     }
@@ -439,8 +441,8 @@ final class DashboardAssembler
             ->where('payments.reversed', false)
             ->selectRaw('
                 payment_methods.code AS modality,
-                SUM(CASE WHEN payments.currency = \'ARS\' THEN payments.amount ELSE 0 END) AS ars,
-                SUM(CASE WHEN payments.currency = \'USD\' THEN payments.amount ELSE 0 END) AS usd,
+                SUM(CASE WHEN payments.amount_currency = \'ARS\' THEN payments.amount_amount ELSE 0 END) AS ars,
+                SUM(CASE WHEN payments.amount_currency = \'USD\' THEN payments.amount_amount ELSE 0 END) AS usd,
                 COUNT(*) AS transactions
             ')
             ->groupBy('payment_methods.code')
@@ -466,7 +468,7 @@ final class DashboardAssembler
                 'customers.first_name',
                 'customers.last_name',
                 'purchase_evolution_metrics.evolution_state',
-                'purchase_evolution_metrics.days_since_last_purchase',
+                'purchase_evolution_metrics.last_interval_days',
             ])
             ->map(fn ($r) => (array) $r)
             ->toArray();
@@ -476,18 +478,21 @@ final class DashboardAssembler
     private function zoneSellersLowStock(string $distId): array
     {
         return DB::table('seller_stock')
-            ->join('zones', function ($join) use ($distId): void {
-                $join->on('zones.distributor_id', DB::raw("'{$distId}'"))
-                    ->whereColumn('seller_stock.zone_id', 'zones.id');
-            })
             ->join('users', 'users.id', '=', 'seller_stock.seller_id')
             ->join('products', 'products.id', '=', 'seller_stock.product_id')
-            ->whereRaw('(seller_stock.boxes - seller_stock.reserved) < seller_stock.minimum_stock')
+            ->whereIn('seller_stock.seller_id', function ($sub) use ($distId): void {
+                $sub->select('customers.assigned_seller_id')
+                    ->from('customers')
+                    ->join('zones', 'zones.id', '=', 'customers.zone_id')
+                    ->where('zones.distributor_id', $distId)
+                    ->whereNotNull('customers.assigned_seller_id');
+            })
+            ->whereRaw('(seller_stock.boxes - seller_stock.reserved_boxes) < seller_stock.minimum_stock')
             ->get([
                 'users.full_name as seller_name',
                 'seller_stock.seller_id',
                 'products.name as product_name',
-                DB::raw('(seller_stock.boxes - seller_stock.reserved) AS available'),
+                DB::raw('(seller_stock.boxes - seller_stock.reserved_boxes) AS available'),
                 'seller_stock.minimum_stock',
             ])
             ->map(fn ($r) => (array) $r)
@@ -505,8 +510,8 @@ final class DashboardAssembler
             ->where('sales.due_date', '<', now())
             ->whereRaw(
                 'sales.total_amount > COALESCE((
-                    SELECT SUM(p.amount) FROM payments p
-                    WHERE p.sale_id = sales.id AND p.reversed = false AND p.currency = sales.currency
+                    SELECT SUM(p.amount_amount) FROM payments p
+                    WHERE p.sale_id = sales.id AND p.reversed = false AND p.amount_currency = sales.currency
                 ), 0)'
             )
             ->get([
@@ -527,14 +532,14 @@ final class DashboardAssembler
         // Reads from distributor_settlements history to compute 6-month balance trajectory.
         return DB::table('distributor_settlements')
             ->where('distributor_id', $distId)
-            ->where('created_at', '>=', now()->subMonths(6)->startOfMonth())
+            ->where('submitted_at', '>=', now()->subMonths(6)->startOfMonth())
             ->selectRaw("
-                TO_CHAR(DATE_TRUNC('month', created_at), 'YYYY-MM') AS month,
-                SUM(CASE WHEN currency = 'ARS' THEN amount ELSE 0 END) AS saldo_ars,
-                SUM(CASE WHEN currency = 'USD' THEN amount ELSE 0 END) AS saldo_usd
+                TO_CHAR(DATE_TRUNC('month', submitted_at), 'YYYY-MM') AS month,
+                SUM(CASE WHEN amount_currency = 'ARS' THEN amount_amount ELSE 0 END) AS saldo_ars,
+                SUM(CASE WHEN amount_currency = 'USD' THEN amount_amount ELSE 0 END) AS saldo_usd
             ")
-            ->groupByRaw("DATE_TRUNC('month', created_at)")
-            ->orderByRaw("DATE_TRUNC('month', created_at) ASC")
+            ->groupByRaw("DATE_TRUNC('month', submitted_at)")
+            ->orderByRaw("DATE_TRUNC('month', submitted_at) ASC")
             ->get()
             ->map(fn ($r) => (array) $r)
             ->toArray();
@@ -551,8 +556,8 @@ final class DashboardAssembler
             ->join('zones', 'zones.id', '=', 'sales.zone_id')
             ->where('zones.distributor_id', $distId)
             ->where('sales.status', 'delivered')
-            ->whereBetween('sales.delivered_at', [$start . ' 00:00:00', $end . ' 23:59:59'])
-            ->selectRaw('SUM(sale_items.boxes) AS boxes, SUM(sales.total_amount) AS amount')
+            ->whereBetween('sales.sale_date', [$start, $end])
+            ->selectRaw('SUM(sale_items.quantity_boxes) AS boxes, SUM(sales.total_amount) AS amount')
             ->first();
 
         return [
@@ -578,7 +583,7 @@ final class DashboardAssembler
     private function recentAuthorizations(): array
     {
         return DB::table('authorization_requests')
-            ->join('users', 'users.id', '=', 'authorization_requests.requester_id')
+            ->join('users', 'users.id', '=', 'authorization_requests.requested_by')
             ->orderByDesc('authorization_requests.created_at')
             ->limit(10)
             ->get([
@@ -605,26 +610,26 @@ final class DashboardAssembler
             ->join('users', 'users.id', '=', 'seller_monthly_goals.seller_id')
             ->leftJoin(
                 DB::raw('(
-                    SELECT sales.seller_id, SUM(si.boxes) AS achieved
+                    SELECT sales.seller_id, SUM(si.quantity_boxes) AS achieved
                     FROM sales
                     JOIN sale_items si ON si.sale_id = sales.id
                     WHERE sales.status = \'delivered\'
-                    AND sales.delivered_at BETWEEN \'' . $start . ' 00:00:00\' AND \'' . $end . ' 23:59:59\'
+                    AND sales.sale_date BETWEEN \'' . $start . '\' AND \'' . $end . '\'
                     GROUP BY sales.seller_id
                 ) achieved_cte'),
                 'achieved_cte.seller_id',
                 '=',
                 'seller_monthly_goals.seller_id'
             )
-            ->where('seller_monthly_goals.period_month', $month->copy()->startOfMonth()->toDateString())
+            ->where('seller_monthly_goals.year_month', $month->copy()->startOfMonth()->toDateString())
             ->selectRaw('
                 seller_monthly_goals.seller_id,
                 users.full_name AS seller_name,
-                seller_monthly_goals.goal_boxes AS target,
+                seller_monthly_goals.target_boxes AS target,
                 COALESCE(achieved_cte.achieved, 0) AS achieved,
                 CASE
-                    WHEN COALESCE(achieved_cte.achieved, 0) >= seller_monthly_goals.goal_boxes THEN \'on_track\'
-                    WHEN COALESCE(achieved_cte.achieved, 0) >= seller_monthly_goals.goal_boxes * 0.75 THEN \'at_risk\'
+                    WHEN COALESCE(achieved_cte.achieved, 0) >= seller_monthly_goals.target_boxes THEN \'on_track\'
+                    WHEN COALESCE(achieved_cte.achieved, 0) >= seller_monthly_goals.target_boxes * 0.75 THEN \'at_risk\'
                     ELSE \'below\'
                 END AS semaphore_status
             ')
@@ -656,8 +661,8 @@ final class DashboardAssembler
             ->where('payment_date', '>=', now()->subMonths(6)->startOfMonth()->toDateString())
             ->selectRaw("
                 TO_CHAR(DATE_TRUNC('month', payment_date::date), 'YYYY-MM') AS month,
-                SUM(CASE WHEN currency = 'ARS' THEN amount ELSE 0 END) AS ars,
-                SUM(CASE WHEN currency = 'USD' THEN amount ELSE 0 END) AS usd
+                SUM(CASE WHEN amount_currency = 'ARS' THEN amount_amount ELSE 0 END) AS ars,
+                SUM(CASE WHEN amount_currency = 'USD' THEN amount_amount ELSE 0 END) AS usd
             ")
             ->groupByRaw("DATE_TRUNC('month', payment_date::date)")
             ->orderByRaw("DATE_TRUNC('month', payment_date::date) ASC")
@@ -674,8 +679,8 @@ final class DashboardAssembler
             ->where('due_date', '<', now())
             ->whereRaw(
                 'total_amount > COALESCE((
-                    SELECT SUM(p.amount) FROM payments p
-                    WHERE p.sale_id = sales.id AND p.reversed = false AND p.currency = sales.currency
+                    SELECT SUM(p.amount_amount) FROM payments p
+                    WHERE p.sale_id = sales.id AND p.reversed = false AND p.amount_currency = sales.currency
                 ), 0)'
             )
             ->selectRaw('
@@ -699,8 +704,8 @@ final class DashboardAssembler
             ->where('sales.due_date', '<', now())
             ->whereRaw(
                 'sales.total_amount > COALESCE((
-                    SELECT SUM(p.amount) FROM payments p
-                    WHERE p.sale_id = sales.id AND p.reversed = false AND p.currency = sales.currency
+                    SELECT SUM(p.amount_amount) FROM payments p
+                    WHERE p.sale_id = sales.id AND p.reversed = false AND p.amount_currency = sales.currency
                 ), 0)'
             )
             ->selectRaw('

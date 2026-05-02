@@ -20,7 +20,9 @@ declare(strict_types=1);
 use App\Domain\Commissions\Seller\Services\CommissionCalculatorService;
 use App\Enums\UserRole;
 use App\Models\CommissionTier;
+use App\Models\Customer;
 use App\Models\ExchangeRate;
+use App\Models\PaymentMethod;
 use App\Models\Sale;
 use App\Models\User;
 use App\Models\Zone;
@@ -65,15 +67,28 @@ function insertPayment(array $overrides = []): string
 {
     $id = Str::uuid()->toString();
 
+    // Resolve required FK columns if not provided
+    $paymentMethod = PaymentMethod::factory()->create();
+    $recorder      = User::factory()->create();
+    $customer      = Customer::factory()->create();
+
+    // Map legacy 'amount'/'currency' keys to the correct column names
+    $amount   = $overrides['amount']   ?? $overrides['amount_amount']   ?? '1000.0000';
+    $currency = $overrides['currency'] ?? $overrides['amount_currency'] ?? 'USD';
+    unset($overrides['amount'], $overrides['currency']);
+
     DB::table('payments')->insert(array_merge([
         'id'               => $id,
         'sale_id'          => null,
-        'amount'           => '1000.0000',
-        'currency'         => 'USD',
+        'customer_id'      => $customer->id,
+        'payment_method_id' => $paymentMethod->id,
+        'amount_amount'    => $amount,
+        'amount_currency'  => $currency,
         'payment_date'     => '2026-05-15',
         'exchange_rate_id' => null,
         'is_advance'       => false,
         'reversed'         => false,
+        'recorded_by'      => $recorder->id,
         'created_at'       => now(),
         'updated_at'       => now(),
     ], $overrides));
@@ -88,7 +103,7 @@ function insertPayment(array $overrides = []): string
 it('applies 10% tier when accumulated USD-equiv is USD 5000', function (): void {
     skipIfNoPaymentsTable();
 
-    $month  = Carbon::create(2026, 5, 1);
+    $month  = Carbon::create(2026, 5, 2);
     $seller = User::factory()->seller()->create();
     $zone   = Zone::factory()->create(['distributor_id' => null]);
     $rate   = ExchangeRate::factory()->create(['rate_ars_per_usd' => '900.000000', 'rate_date' => '2026-05-10']);
@@ -114,7 +129,7 @@ it('applies 10% tier when accumulated USD-equiv is USD 5000', function (): void 
 it('applies 12% tier over 100% when accumulated USD-equiv is USD 8000 (mix ARS+USD)', function (): void {
     skipIfNoPaymentsTable();
 
-    $month  = Carbon::create(2026, 5, 1);
+    $month  = Carbon::create(2026, 5, 2);
     $seller = User::factory()->seller()->create();
     $zone   = Zone::factory()->create(['distributor_id' => null]);
     $rate   = ExchangeRate::factory()->create(['rate_ars_per_usd' => '1000.000000', 'rate_date' => '2026-05-10']);
@@ -151,7 +166,7 @@ it('applies 12% tier over 100% when accumulated USD-equiv is USD 8000 (mix ARS+U
 it('applies 15% tier when accumulated USD-equiv is USD 12000', function (): void {
     skipIfNoPaymentsTable();
 
-    $month  = Carbon::create(2026, 5, 1);
+    $month  = Carbon::create(2026, 5, 2);
     $seller = User::factory()->seller()->create();
     $zone   = Zone::factory()->create(['distributor_id' => null]);
     $rate   = ExchangeRate::factory()->create(['rate_ars_per_usd' => '900.000000', 'rate_date' => '2026-05-10']);
@@ -178,7 +193,7 @@ it('applies 15% tier when accumulated USD-equiv is USD 12000', function (): void
 it('returns zero commission and is_director=true for a Director seller', function (): void {
     skipIfNoPaymentsTable();
 
-    $month    = Carbon::create(2026, 5, 1);
+    $month    = Carbon::create(2026, 5, 2);
     $director = User::factory()->director()->create();
     $zone     = Zone::factory()->create(['distributor_id' => null]);
     $rate     = ExchangeRate::factory()->create(['rate_ars_per_usd' => '900.000000', 'rate_date' => '2026-05-10']);
@@ -226,7 +241,7 @@ it('counts an anticipo payment in the month it was received', function (): void 
     ]);
 
     $resultApril = makeCalculator($month)->calculateForMonth($seller, $month);
-    $resultMay   = makeCalculator(Carbon::create(2026, 5, 1))->calculateForMonth($seller, Carbon::create(2026, 5, 1));
+    $resultMay   = makeCalculator(Carbon::create(2026, 5, 2))->calculateForMonth($seller, Carbon::create(2026, 5, 2));
 
     // Anticipo counted in April
     expect($resultApril->accumulated_usd->getAmount()->__toString())->toBe('5000.00');
@@ -241,7 +256,7 @@ it('counts an anticipo payment in the month it was received', function (): void 
 it('excludes reversed payments from accumulation', function (): void {
     skipIfNoPaymentsTable();
 
-    $month  = Carbon::create(2026, 5, 1);
+    $month  = Carbon::create(2026, 5, 2);
     $seller = User::factory()->seller()->create();
     $zone   = Zone::factory()->create(['distributor_id' => null]);
     $rate   = ExchangeRate::factory()->create(['rate_ars_per_usd' => '900.000000', 'rate_date' => '2026-05-10']);
@@ -282,7 +297,7 @@ it('excludes reversed payments from accumulation', function (): void {
 it('returns commission_ars > 0 and commission_usd = 0 for an ARS-only month', function (): void {
     skipIfNoPaymentsTable();
 
-    $month  = Carbon::create(2026, 5, 1);
+    $month  = Carbon::create(2026, 5, 2);
     $seller = User::factory()->seller()->create();
     $zone   = Zone::factory()->create(['distributor_id' => null]);
     $rate   = ExchangeRate::factory()->create(['rate_ars_per_usd' => '1000.000000', 'rate_date' => '2026-05-10']);
@@ -311,7 +326,7 @@ it('returns commission_ars > 0 and commission_usd = 0 for an ARS-only month', fu
 it('returns commission_usd > 0 and commission_ars = 0 for a USD-only month', function (): void {
     skipIfNoPaymentsTable();
 
-    $month  = Carbon::create(2026, 5, 1);
+    $month  = Carbon::create(2026, 5, 2);
     $seller = User::factory()->seller()->create();
     $zone   = Zone::factory()->create(['distributor_id' => null]);
     $rate   = ExchangeRate::factory()->create(['rate_ars_per_usd' => '900.000000', 'rate_date' => '2026-05-10']);
@@ -339,7 +354,7 @@ it('returns commission_usd > 0 and commission_ars = 0 for a USD-only month', fun
 it('splits commission proportionally in a mixed ARS+USD month', function (): void {
     skipIfNoPaymentsTable();
 
-    $month  = Carbon::create(2026, 5, 1);
+    $month  = Carbon::create(2026, 5, 2);
     $seller = User::factory()->seller()->create();
     $zone   = Zone::factory()->create(['distributor_id' => null]);
     $rate   = ExchangeRate::factory()->create(['rate_ars_per_usd' => '1000.000000', 'rate_date' => '2026-05-10']);

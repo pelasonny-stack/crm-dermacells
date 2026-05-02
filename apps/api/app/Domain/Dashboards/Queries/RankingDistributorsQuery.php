@@ -36,20 +36,20 @@ final class RankingDistributorsQuery
                 users.full_name AS distributor_name,
                 zones.id AS zone_id,
                 zones.name AS zone_name,
-                SUM(CASE WHEN payments.currency = \'ARS\' THEN payments.amount ELSE 0 END) AS volume_ars,
-                SUM(CASE WHEN payments.currency = \'USD\' THEN payments.amount ELSE 0 END) AS volume_usd,
+                SUM(CASE WHEN payments.amount_currency = \'ARS\' THEN payments.amount_amount ELSE 0 END) AS volume_ars,
+                SUM(CASE WHEN payments.amount_currency = \'USD\' THEN payments.amount_amount ELSE 0 END) AS volume_usd,
                 SUM(
                     CASE
-                        WHEN payments.currency = \'ARS\'
-                        THEN payments.amount / NULLIF(exchange_rates.rate_ars_per_usd, 0)
-                        ELSE payments.amount
+                        WHEN payments.amount_currency = \'ARS\'
+                        THEN payments.amount_amount / NULLIF(exchange_rates.rate_ars_per_usd, 0)
+                        ELSE payments.amount_amount
                     END
                 ) AS usd_equivalent,
                 RANK() OVER (ORDER BY SUM(
                     CASE
-                        WHEN payments.currency = \'ARS\'
-                        THEN payments.amount / NULLIF(exchange_rates.rate_ars_per_usd, 0)
-                        ELSE payments.amount
+                        WHEN payments.amount_currency = \'ARS\'
+                        THEN payments.amount_amount / NULLIF(exchange_rates.rate_ars_per_usd, 0)
+                        ELSE payments.amount_amount
                     END
                 ) DESC) AS rank
             ')

@@ -29,7 +29,7 @@ it('setValue creates a new configuration key', function (): void {
 
     Configuration::setValue($key, '42');
 
-    $stored = Configuration::getValue($key, 0);
+    $stored = Configuration::getValue($key, null);
 
     expect($stored)->toBe('42');
 })->skip(fn () => ! DB::getSchemaBuilder()->hasTable('configurations'), 'configurations table not yet migrated');

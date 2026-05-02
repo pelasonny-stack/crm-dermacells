@@ -59,27 +59,60 @@ class EvolutionEngine
      */
     public function recompute(): int
     {
-        // Step 1: refresh the view without blocking reads
-        DB::statement('REFRESH MATERIALIZED VIEW CONCURRENTLY mv_customer_product_purchases');
+        // Step 1: refresh the materialized view.
+        // Attempt a CONCURRENT refresh via the migration connection (which owns the
+        // MV and is not wrapped in DatabaseTransactions). If the refresh fails (e.g.
+        // the MV has no committed data yet — common in test transactions), we fall
+        // through and query the base tables directly in step 2.
+        $migrationConnection = config('database.default') === 'pgsql_test'
+            ? 'pgsql_test_migration'
+            : 'pgsql_migration';
 
-        Log::info('EvolutionEngine: materialized view refreshed.');
+        try {
+            DB::connection($migrationConnection)->statement(
+                'REFRESH MATERIALIZED VIEW CONCURRENTLY mv_customer_product_purchases'
+            );
+            Log::info('EvolutionEngine: materialized view refreshed concurrently.');
+        } catch (\Throwable $e) {
+            Log::warning('EvolutionEngine: MV refresh skipped — ' . $e->getMessage());
+        }
 
-        // Step 2: UPSERT metrics from the refreshed view.
-        // State classification is done in PHP via stateFor() after bulk load;
-        // this avoids encoding the classification logic in SQL (simpler to test).
+        // Step 2: UPSERT metrics.
+        // Query the base tables directly instead of the MV so that:
+        //  - Test transactions (uncommitted data) are visible to this connection.
+        //  - Production queries remain accurate even when the MV is momentarily stale.
+        //
+        // Note: sale_date is a DATE column. In Postgres, DATE - DATE yields an INTEGER
+        // (number of days), NOT an interval — so no EXTRACT(EPOCH FROM ...) needed.
         $rows = DB::select(<<<'SQL'
             SELECT
-                mv.customer_id,
-                mv.product_id,
-                mv.total_purchases   AS purchase_count,
-                mv.last_date         AS last_purchase_date,
-                mv.avg_interval      AS avg_interval_days,
+                sub.customer_id,
+                sub.product_id,
+                COUNT(*)                                               AS purchase_count,
+                MAX(sub.sale_date)                                     AS last_purchase_date,
+                -- avg_interval_days: average of ALL non-null gaps (matches MV AVG(gap))
                 CASE
-                    WHEN array_length(mv.intervals_array, 1) >= 1
-                    THEN mv.intervals_array[array_length(mv.intervals_array, 1)]
-                    ELSE NULL
-                END                  AS last_interval_days
-            FROM mv_customer_product_purchases mv
+                    WHEN COUNT(DISTINCT sub.sale_date) < 2 THEN NULL
+                    ELSE ROUND(AVG(sub.interval_days)::NUMERIC, 2)
+                END                                                    AS avg_interval_days,
+                -- intervals_array: all gaps in chronological order (matching MV)
+                ARRAY_AGG(sub.interval_days ORDER BY sub.sale_date)
+                    FILTER (WHERE sub.interval_days IS NOT NULL)       AS intervals_array
+            FROM (
+                SELECT
+                    s.customer_id,
+                    si.product_id,
+                    s.sale_date,
+                    -- DATE - DATE returns INTEGER (days) in Postgres
+                    (s.sale_date - LAG(s.sale_date) OVER (
+                        PARTITION BY s.customer_id, si.product_id
+                        ORDER BY s.sale_date
+                    ))::float AS interval_days
+                FROM sales s
+                JOIN sale_items si ON si.sale_id = s.id
+                WHERE s.status = 'delivered'
+            ) sub
+            GROUP BY sub.customer_id, sub.product_id
         SQL);
 
         $affected = 0;
@@ -93,13 +126,25 @@ class EvolutionEngine
                 continue;
             }
 
+            // Parse the intervals array (Postgres returns it as a string like "{30.0,37.0}")
+            $intervalsArray  = $row->intervals_array;
+            $lastIntervalDays = null;
+            if (is_string($intervalsArray) && $intervalsArray !== '' && $intervalsArray !== '{}') {
+                // Strip braces and split
+                $vals = explode(',', trim($intervalsArray, '{}'));
+                $vals = array_filter($vals, fn ($v) => $v !== 'NULL' && $v !== '');
+                if (count($vals) > 0) {
+                    $lastIntervalDays = (int) round((float) end($vals));
+                }
+            }
+
             $metric = new PurchaseEvolutionMetric([
                 'customer_id'        => $row->customer_id,
                 'product_id'         => $row->product_id,
                 'purchase_count'     => (int) $row->purchase_count,
                 'last_purchase_date' => $row->last_purchase_date,
                 'avg_interval_days'  => $row->avg_interval_days !== null ? (float) $row->avg_interval_days : null,
-                'last_interval_days' => $row->last_interval_days !== null ? (int) $row->last_interval_days : null,
+                'last_interval_days' => $lastIntervalDays,
             ]);
 
             $state = $this->stateFor($customer, $product, $metric);
@@ -125,7 +170,7 @@ class EvolutionEngine
                 'product_id'         => $row->product_id,
                 'last_purchase_date' => $row->last_purchase_date,
                 'avg_interval_days'  => $row->avg_interval_days,
-                'last_interval_days' => $row->last_interval_days,
+                'last_interval_days' => $lastIntervalDays,
                 'purchase_count'     => (int) $row->purchase_count,
                 'evolution_state'    => $state->value,
             ]);

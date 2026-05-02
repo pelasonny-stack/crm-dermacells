@@ -48,7 +48,8 @@ final class ApplyCreditBalanceAction
         }
 
         return DB::transaction(function () use ($creditBalance, $sale, $amount): CustomerCreditBalance {
-            $creditBalance->lockForUpdate()->refresh();
+            CustomerCreditBalance::lockForUpdate()->find($creditBalance->id);
+            $creditBalance->refresh();
 
             if ($creditBalance->customer_id !== $sale->customer_id) {
                 throw new \InvalidArgumentException(

@@ -33,10 +33,9 @@ it('allows request when admin_step_up_at is within TTL', function (): void {
         ->withSession([AdminStepUpRequired::SESSION_KEY => time()])
         ->get('/admin');
 
-    // With valid step-up flag, the request should not 403 from this middleware.
-    // (AdminAccessGate may still run — we only assert it's not a step-up redirect.)
-    expect($response->status())->not->toBe(302)
-        ->or(fn ($s) => $s === 200);
+    // With valid step-up flag, the request should not be a step-up redirect.
+    // (AdminAccessGate may still run — we only assert it's not a step-up 302.)
+    expect($response->status())->not->toBe(302);
 });
 
 it('redirects to step-up when session flag is absent', function (): void {

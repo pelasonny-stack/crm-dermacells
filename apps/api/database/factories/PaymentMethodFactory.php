@@ -17,13 +17,7 @@ class PaymentMethodFactory extends Factory
     public function definition(): array
     {
         return [
-            'code'                  => $this->faker->randomElement([
-                'transfer_dermacells',
-                'transfer_distributor',
-                'cash',
-                'credit_card',
-                'check',
-            ]),
+            'code'                  => $this->faker->unique()->bothify('pm_??##??##'),
             'name'                  => $this->faker->words(2, true),
             'requires_reference'    => false,
             'requires_installments' => false,

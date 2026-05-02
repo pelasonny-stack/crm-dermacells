@@ -7,6 +7,7 @@ namespace App\Domain\DistributorFinance\Services;
 use App\Models\SellerCommissionConfig;
 use App\Models\User;
 use App\Models\Zone;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -102,14 +103,14 @@ final class CommissionAssignmentService
      * @param User        $distributor  The paying Distributor.
      * @param User        $seller       The Seller.
      * @param Zone        $zone         The zone.
-     * @param Carbon|null $asOf         The target date; defaults to today.
+     * @param CarbonInterface|null $asOf  The target date; defaults to today.
      * @return float|null               Fraction in [0,1], or null if unconfigured.
      */
     public function currentPctFor(
         User $distributor,
         User $seller,
         Zone $zone,
-        ?Carbon $asOf = null,
+        ?CarbonInterface $asOf = null,
     ): ?float {
         $targetDate = $asOf ?? today();
 

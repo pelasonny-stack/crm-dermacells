@@ -35,11 +35,11 @@ final class StockSnapshotQuery
                 'seller_stock.product_id',
                 'products.name as product_name',
                 'seller_stock.boxes',
-                'seller_stock.units_loose',
-                'seller_stock.reserved',
-                DB::raw('(seller_stock.boxes - seller_stock.reserved) AS available'),
+                'seller_stock.loose_units',
+                'seller_stock.reserved_boxes as reserved',
+                DB::raw('(seller_stock.boxes - seller_stock.reserved_boxes) AS available'),
                 'seller_stock.minimum_stock as min_stock',
-                DB::raw('((seller_stock.boxes - seller_stock.reserved) < seller_stock.minimum_stock) AS below_min'),
+                DB::raw('((seller_stock.boxes - seller_stock.reserved_boxes) < seller_stock.minimum_stock) AS below_min'),
             ])
             ->get();
     }
@@ -57,29 +57,34 @@ final class StockSnapshotQuery
             ->select([
                 'distributor_stock.product_id',
                 'products.name as product_name',
-                'distributor_stock.boxes as available',
+                'distributor_stock.available',
                 'distributor_stock.minimum_stock as min_stock',
-                DB::raw('(distributor_stock.boxes < distributor_stock.minimum_stock) AS below_min'),
+                DB::raw('(distributor_stock.available < distributor_stock.minimum_stock) AS below_min'),
             ])
             ->get();
 
-        // All sellers in zones managed by this distributor
+        // All sellers in zones managed by this distributor (via customers assignment)
         $sellersStock = DB::table('seller_stock')
             ->join('products', 'products.id', '=', 'seller_stock.product_id')
             ->join('users', 'users.id', '=', 'seller_stock.seller_id')
-            ->join('zones', 'zones.distributor_id', '=', DB::raw("'{$distributorId}'"))
-            ->whereColumn('zones.id', 'seller_stock.zone_id')
+            ->whereIn('seller_stock.seller_id', function ($sub) use ($distributorId): void {
+                $sub->select('customers.assigned_seller_id')
+                    ->from('customers')
+                    ->join('zones', 'zones.id', '=', 'customers.zone_id')
+                    ->where('zones.distributor_id', $distributorId)
+                    ->whereNotNull('customers.assigned_seller_id');
+            })
             ->select([
                 'seller_stock.seller_id',
                 'users.full_name as seller_name',
                 'seller_stock.product_id',
                 'products.name as product_name',
                 'seller_stock.boxes',
-                'seller_stock.units_loose',
-                'seller_stock.reserved',
-                DB::raw('(seller_stock.boxes - seller_stock.reserved) AS available'),
+                'seller_stock.loose_units',
+                'seller_stock.reserved_boxes as reserved',
+                DB::raw('(seller_stock.boxes - seller_stock.reserved_boxes) AS available'),
                 'seller_stock.minimum_stock as min_stock',
-                DB::raw('((seller_stock.boxes - seller_stock.reserved) < seller_stock.minimum_stock) AS below_min'),
+                DB::raw('((seller_stock.boxes - seller_stock.reserved_boxes) < seller_stock.minimum_stock) AS below_min'),
             ])
             ->get();
 
@@ -98,9 +103,9 @@ final class StockSnapshotQuery
             ->select([
                 'central_stock.product_id',
                 'products.name as product_name',
-                'central_stock.boxes_available',
+                'central_stock.available as boxes_available',
                 'central_stock.minimum_stock as min_stock',
-                DB::raw('(central_stock.boxes_available < central_stock.minimum_stock) AS below_min'),
+                DB::raw('(central_stock.available < central_stock.minimum_stock) AS below_min'),
             ])
             ->get();
     }
@@ -115,28 +120,28 @@ final class StockSnapshotQuery
         $sellers = DB::table('seller_stock')
             ->join('products', 'products.id', '=', 'seller_stock.product_id')
             ->join('users', 'users.id', '=', 'seller_stock.seller_id')
-            ->whereRaw('(seller_stock.boxes - seller_stock.reserved) < seller_stock.minimum_stock')
+            ->whereRaw('(seller_stock.boxes - seller_stock.reserved_boxes) < seller_stock.minimum_stock')
             ->select([
                 DB::raw("'seller' AS actor_type"),
                 'seller_stock.seller_id as actor_id',
                 'users.full_name as actor_name',
                 'seller_stock.product_id',
                 'products.name as product_name',
-                DB::raw('(seller_stock.boxes - seller_stock.reserved) AS available'),
+                DB::raw('(seller_stock.boxes - seller_stock.reserved_boxes) AS available'),
                 'seller_stock.minimum_stock as min_stock',
             ]);
 
         $distributors = DB::table('distributor_stock')
             ->join('products', 'products.id', '=', 'distributor_stock.product_id')
             ->join('users', 'users.id', '=', 'distributor_stock.distributor_id')
-            ->whereRaw('distributor_stock.boxes < distributor_stock.minimum_stock')
+            ->whereRaw('distributor_stock.available < distributor_stock.minimum_stock')
             ->select([
                 DB::raw("'distributor' AS actor_type"),
                 'distributor_stock.distributor_id as actor_id',
                 'users.full_name as actor_name',
                 'distributor_stock.product_id',
                 'products.name as product_name',
-                'distributor_stock.boxes as available',
+                'distributor_stock.available',
                 'distributor_stock.minimum_stock as min_stock',
             ]);
 

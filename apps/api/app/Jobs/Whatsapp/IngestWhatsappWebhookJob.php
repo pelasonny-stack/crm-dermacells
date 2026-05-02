@@ -159,24 +159,31 @@ class IngestWhatsappWebhookJob implements ShouldQueue
         $thread->last_inbound_at  = $sentAt;
         $thread->save();
 
-        // Insert the message — ignore duplicate wa_message_id via unique constraint.
-        try {
-            WhatsappMessage::create([
-                'thread_id'     => $thread->id,
-                'wa_message_id' => $waMessageId,
-                'direction'     => 'inbound',
-                'body'          => $body !== '' ? $body : '[non-text message]',
-                'message_type'  => $type,
-                'sent_at'       => $sentAt,
-                'synced_at'     => now(),
-            ]);
+        // Insert the message — skip duplicates via ON CONFLICT DO NOTHING.
+        // Using insertOrIgnore avoids a failed statement aborting the Postgres
+        // transaction (which would happen with try/catch around INSERT on PG).
+        $messageData = [
+            'thread_id'     => $thread->id,
+            'wa_message_id' => $waMessageId,
+            'direction'     => 'inbound',
+            'body'          => $body !== '' ? $body : '[non-text message]',
+            'message_type'  => $type,
+            'sent_at'       => $sentAt,
+            'synced_at'     => now(),
+        ];
+
+        // Check if a row with this wa_message_id already exists before inserting.
+        // This avoids Postgres aborting the surrounding transaction on constraint
+        // violation (PG has no INSERT IGNORE at statement level without savepoints).
+        if (WhatsappMessage::where('wa_message_id', $waMessageId)->doesntExist()) {
+            WhatsappMessage::create($messageData);
 
             Log::info('whatsapp.ingest: message persisted', [
                 'thread_id'      => $thread->id,
                 'customer_id'    => $customer->id,
                 'wa_message_id'  => $waMessageId,
             ]);
-        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+        } else {
             Log::info('whatsapp.ingest: duplicate wa_message_id skipped', [
                 'wa_message_id' => $waMessageId,
             ]);
@@ -193,7 +200,8 @@ class IngestWhatsappWebhookJob implements ShouldQueue
         string $type,
         Carbon $sentAt,
     ): void {
-        try {
+        // Check existence before insert to avoid aborting the Postgres transaction.
+        if (UnmatchedWhatsappMessage::where('wa_message_id', $waMessageId)->doesntExist()) {
             UnmatchedWhatsappMessage::create([
                 'wa_phone'      => $normalizedPhone,
                 'body'          => $body !== '' ? $body : '[non-text message]',
@@ -206,7 +214,7 @@ class IngestWhatsappWebhookJob implements ShouldQueue
                 'wa_phone'      => $normalizedPhone,
                 'wa_message_id' => $waMessageId,
             ]);
-        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+        } else {
             Log::info('whatsapp.ingest: duplicate unmatched wa_message_id skipped', [
                 'wa_message_id' => $waMessageId,
             ]);

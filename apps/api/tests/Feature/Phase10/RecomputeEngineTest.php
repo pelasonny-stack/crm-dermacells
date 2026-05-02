@@ -81,32 +81,34 @@ it('creates a metric row with correct purchase_count after two delivered sales',
     expect((float) $metric->avg_interval_days)->toBeGreaterThan(0.0);
 });
 
-it('classifies a customer with interval=37d (avg=30d) as decreasing', function (): void {
+it('classifies a customer with interval=40d (avg=30d) as decreasing', function (): void {
     $paymentTerm = \App\Models\PaymentTerm::factory()->create();
 
-    // Sale 1: 67 days ago
+    // Sale 1: 60 days ago
     $s1 = Sale::factory()->create([
         'customer_id'     => $this->customer->id,
         'seller_id'       => $this->seller->id,
         'zone_id'         => $this->customer->zone_id,
         'status'          => SaleStatus::Delivered,
-        'sale_date'       => now()->subDays(67)->toDateString(),
+        'sale_date'       => now()->subDays(60)->toDateString(),
         'payment_terms_id' => $paymentTerm->id,
     ]);
     SaleItem::factory()->create(['sale_id' => $s1->id, 'product_id' => $this->product->id]);
 
-    // Sale 2: 37 days ago (interval from s1 = 30d)
+    // Sale 2: 40 days ago (interval from s1 = 20d)
     $s2 = Sale::factory()->create([
         'customer_id'     => $this->customer->id,
         'seller_id'       => $this->seller->id,
         'zone_id'         => $this->customer->zone_id,
         'status'          => SaleStatus::Delivered,
-        'sale_date'       => now()->subDays(37)->toDateString(),
+        'sale_date'       => now()->subDays(40)->toDateString(),
         'payment_terms_id' => $paymentTerm->id,
     ]);
     SaleItem::factory()->create(['sale_id' => $s2->id, 'product_id' => $this->product->id]);
 
-    // Sale 3: today (interval from s2 = 37d > avg*1.20=36)
+    // Sale 3: today (interval from s2 = 40d)
+    // avg = (20 + 40) / 2 = 30d. last = 40d. upper_bound = 30 * 1.20 = 36d.
+    // 40 > 36 → decreasing.
     $s3 = Sale::factory()->create([
         'customer_id'     => $this->customer->id,
         'seller_id'       => $this->seller->id,
