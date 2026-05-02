@@ -15,7 +15,7 @@
     @if($result !== null)
         @php $summary = $this->getSummary(); @endphp
 
-        @if($result->is_director)
+        @if($result['is_director'])
             <x-filament::section heading="Result">
                 <x-filament::badge color="danger">
                     Directors do not earn commissions (§12.3).

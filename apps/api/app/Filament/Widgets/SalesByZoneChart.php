@@ -38,14 +38,14 @@ final class SalesByZoneChart extends ChartWidget
             ->join('sale_items', 'sale_items.sale_id', '=', 'sales.id')
             ->join('zones', 'zones.id', '=', 'sales.zone_id')
             ->where('sales.status', 'delivered')
-            ->where('sales.delivered_at', '>=', now()->subMonths(6)->startOfMonth())
+            ->where('sales.sale_date', '>=', now()->subMonths(6)->startOfMonth()->toDateString())
             ->selectRaw("
-                TO_CHAR(DATE_TRUNC('month', sales.delivered_at), 'YYYY-MM') AS month,
+                TO_CHAR(DATE_TRUNC('month', sales.sale_date), 'YYYY-MM') AS month,
                 zones.name AS zone_name,
-                SUM(sale_items.boxes) AS boxes
+                SUM(sale_items.quantity_boxes) AS boxes
             ")
-            ->groupByRaw("DATE_TRUNC('month', sales.delivered_at), zones.name")
-            ->orderByRaw("DATE_TRUNC('month', sales.delivered_at) ASC")
+            ->groupByRaw("DATE_TRUNC('month', sales.sale_date), zones.name")
+            ->orderByRaw("DATE_TRUNC('month', sales.sale_date) ASC")
             ->get();
 
         // Build months list (last 6 months, always 6 labels even if no data).

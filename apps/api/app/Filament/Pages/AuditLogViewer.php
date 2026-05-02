@@ -6,8 +6,8 @@ namespace App\Filament\Pages;
 
 use App\Enums\UserRole;
 use App\Exports\AuditLogExport;
+use App\Models\AuditLog;
 use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Select;
 use Filament\Pages\Page;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Columns\TextColumn;
@@ -16,9 +16,7 @@ use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Database\Query\Builder;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -33,9 +31,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * Director can NOT edit or delete rows — the form is read-only by design.
  * The Postgres BEFORE trigger enforces immutability at DB level as well.
  *
- * The page uses Filament's InteractsWithTable trait to render the table but
- * reads from DB facade (not an Eloquent model) because audit_log is
- * partitioned and declared append-only; we do not maintain a full Model for it.
+ * The page uses Filament's InteractsWithTable trait to render the table.
+ * Reads via the AuditLog Eloquent model (read-only, no timestamps) which wraps
+ * the append-only audit_log table and provides an Eloquent Builder for Filament.
  */
 class AuditLogViewer extends Page implements HasTable
 {
@@ -63,11 +61,11 @@ class AuditLogViewer extends Page implements HasTable
 
     public ?string $filterDateTo = null;
 
-    public ?string $filterUserId = null;
+    public ?string $filterActorUserId = null;
 
-    public ?string $filterTableName = null;
+    public ?string $filterSection = null;
 
-    public ?string $filterAction = null;
+    public ?string $filterActorRole = null;
 
     public static function canAccess(): bool
     {
@@ -77,37 +75,45 @@ class AuditLogViewer extends Page implements HasTable
     public function table(Table $table): Table
     {
         return $table
-            ->query(fn (): Builder => $this->buildQuery())
+            ->query(fn (): Builder => AuditLog::withActorName())
             ->columns([
                 TextColumn::make('occurred_at')
                     ->label('Fecha y hora')
                     ->sortable()
                     ->dateTime('d/m/Y H:i:s'),
 
-                TextColumn::make('user_name')
-                    ->label('Usuario')
-                    ->searchable()
+                TextColumn::make('actor_name')
+                    ->label('Actor')
+                    ->searchable(false)
                     ->placeholder('Sistema'),
 
-                TextColumn::make('action')
-                    ->label('Accion')
+                TextColumn::make('actor_role')
+                    ->label('Rol')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'created'  => 'success',
-                        'updated'  => 'warning',
-                        'deleted'  => 'danger',
-                        default    => 'gray',
-                    }),
+                    ->color(fn (?string $state): string => match ($state) {
+                        'director'    => 'danger',
+                        'seller'      => 'success',
+                        'distributor' => 'warning',
+                        default       => 'gray',
+                    })
+                    ->placeholder('—'),
 
-                TextColumn::make('table_name')
-                    ->label('Tabla')
-                    ->searchable(),
-
-                TextColumn::make('record_id')
-                    ->label('ID registro')
+                TextColumn::make('section')
+                    ->label('Seccion')
                     ->searchable()
+                    ->placeholder('—'),
+
+                TextColumn::make('entity_type')
+                    ->label('Entidad')
+                    ->searchable()
+                    ->placeholder('—'),
+
+                TextColumn::make('entity_id')
+                    ->label('ID entidad')
                     ->limit(12)
-                    ->tooltip(fn ($state): string => (string) $state),
+                    ->tooltip(fn ($state): string => (string) ($state ?? ''))
+                    ->searchable()
+                    ->placeholder('—'),
 
                 TextColumn::make('field_name')
                     ->label('Campo')
@@ -135,24 +141,31 @@ class AuditLogViewer extends Page implements HasTable
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         if ($data['date_from'] ?? null) {
-                            $query->where('al.occurred_at', '>=', $data['date_from']);
+                            $query->where('audit_log.occurred_at', '>=', $data['date_from']);
                         }
                         if ($data['date_to'] ?? null) {
-                            $query->where('al.occurred_at', '<=', $data['date_to'] . ' 23:59:59');
+                            $query->where('audit_log.occurred_at', '<=', $data['date_to'] . ' 23:59:59');
                         }
 
                         return $query;
                     }),
 
-                SelectFilter::make('action')
-                    ->label('Accion')
+                SelectFilter::make('actor_role')
+                    ->label('Rol')
                     ->options([
-                        'created' => 'Creado',
-                        'updated' => 'Actualizado',
-                        'deleted' => 'Eliminado',
+                        'director'    => 'Director',
+                        'seller'      => 'Vendedor',
+                        'distributor' => 'Distribuidor',
                     ])
                     ->query(fn (Builder $query, array $data): Builder =>
-                        $data['value'] ? $query->where('al.action', $data['value']) : $query
+                        $data['value'] ? $query->where('audit_log.actor_role', $data['value']) : $query
+                    ),
+
+                SelectFilter::make('section')
+                    ->label('Seccion')
+                    ->options(fn (): array => AuditLog::distinct()->orderBy('section')->pluck('section', 'section')->filter()->toArray())
+                    ->query(fn (Builder $query, array $data): Builder =>
+                        $data['value'] ? $query->where('audit_log.section', $data['value']) : $query
                     ),
             ])
             ->headerActions([
@@ -205,34 +218,15 @@ class AuditLogViewer extends Page implements HasTable
     // Internal
     // -------------------------------------------------------------------------
 
-    private function buildQuery(): Builder
-    {
-        return DB::table('audit_log as al')
-            ->leftJoin('users as u', 'u.id', '=', 'al.user_id')
-            ->select([
-                'al.id',
-                'al.occurred_at',
-                DB::raw("COALESCE(u.full_name, al.user_id::TEXT) AS user_name"),
-                'u.email AS user_email',
-                'al.action',
-                'al.table_name',
-                'al.record_id',
-                'al.field_name',
-                'al.old_value',
-                'al.new_value',
-                'al.hmac_hash',
-            ]);
-    }
-
     /** @return array<string, mixed> */
     private function activeFilters(): array
     {
         return array_filter([
-            'date_from'  => $this->filterDateFrom,
-            'date_to'    => $this->filterDateTo,
-            'user_id'    => $this->filterUserId,
-            'table_name' => $this->filterTableName,
-            'action'     => $this->filterAction,
+            'date_from'    => $this->filterDateFrom,
+            'date_to'      => $this->filterDateTo,
+            'actor_user_id' => $this->filterActorUserId,
+            'section'      => $this->filterSection,
+            'actor_role'   => $this->filterActorRole,
         ]);
     }
 }

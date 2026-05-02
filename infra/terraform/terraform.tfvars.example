@@ -1,0 +1,59 @@
+# Copy this file to terraform.tfvars and fill in real values.
+# NEVER commit terraform.tfvars to git — it may contain sensitive values.
+
+# --- Core ---
+aws_region  = "sa-east-1"
+environment = "staging"  # or "production"
+app_name    = "dermacells-crm"
+
+# --- Networking ---
+vpc_cidr = "10.0.0.0/16"
+availability_zones = ["sa-east-1a", "sa-east-1b", "sa-east-1c"]
+public_subnet_cidrs  = ["10.0.0.0/24", "10.0.1.0/24", "10.0.2.0/24"]
+private_subnet_cidrs = ["10.0.10.0/24", "10.0.11.0/24", "10.0.12.0/24"]
+
+# --- RDS ---
+db_instance_class        = "db.t4g.medium"  # upgrade to db.r8g.large for production
+db_name                  = "dermacells"
+db_backup_retention_days = 30
+rds_multi_az             = false  # set true for production
+
+# --- Redis ---
+redis_node_type       = "cache.t4g.small"  # upgrade to cache.r7g.large for production
+redis_num_cache_nodes = 1  # set 2 for production (enables auto-failover)
+
+# --- ECS Fargate tasks ---
+# Staging: smaller sizes
+web_cpu           = 512
+web_memory        = 1024
+web_desired_count = 1
+
+horizon_cpu           = 256
+horizon_memory        = 512
+horizon_desired_count = 1
+
+reverb_cpu           = 256
+reverb_memory        = 512
+reverb_desired_count = 1
+
+scheduler_cpu    = 256
+scheduler_memory = 512
+
+# Production recommended sizes:
+# web_cpu=2048, web_memory=4096, web_desired_count=2
+# horizon_cpu=1024, horizon_memory=2048
+
+# --- ECR Image ---
+# Format: <account_id>.dkr.ecr.sa-east-1.amazonaws.com/dermacells-crm/api:<git_sha>
+api_image_uri = "ACCOUNT_ID.dkr.ecr.sa-east-1.amazonaws.com/dermacells-crm/api:latest"
+
+# --- Domain ---
+domain_name         = "crm.dermacells.com.ar"
+staging_domain_name = "staging.dermacells.com.ar"
+
+# Route 53 hosted zone ID for dermacells.com.ar
+# Find it: aws route53 list-hosted-zones --query "HostedZones[?Name=='dermacells.com.ar.'].Id"
+route53_zone_id = "ZXXXXXXXXXXXXXXXXX"
+
+# --- Alerting ---
+alarm_email = "ops@dermacells.com.ar"

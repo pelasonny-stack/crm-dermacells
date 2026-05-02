@@ -57,3 +57,37 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+---
+
+## CRM Dermacells — Backend Notes
+
+### Sentry integration
+
+`sentry/sentry-laravel` is listed as a **planned dependency** (Phase 17 hardening).
+It is NOT yet in `composer.json` to avoid breaking existing CI until the DSN is provisioned.
+
+To install when ready:
+
+```bash
+cd apps/api
+composer require sentry/sentry-laravel
+php artisan sentry:publish --dsn=<DSN>
+```
+
+The config is already at `config/sentry.php`. Set `SENTRY_DSN_BACKEND` in Secrets Manager
+and `SENTRY_TRACES_SAMPLE_RATE=0.05` (5% tracing in production).
+
+### PagerDuty integration
+
+Set `PAGERDUTY_INTEGRATION_KEY` in Secrets Manager (`dermacells/production`).
+Also register the key in `config/services.php`:
+
+```php
+'pagerduty' => [
+    'integration_key' => env('PAGERDUTY_INTEGRATION_KEY'),
+],
+```
+
+The `AuditChainTamperingDetected` notification uses this key to POST to the
+PagerDuty Events API v2 when audit log HMAC tampering is detected.

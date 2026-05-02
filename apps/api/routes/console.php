@@ -140,6 +140,18 @@ Schedule::command(VerifyAuditChain::class)
             'audit:verify failed — possible audit_log tampering or HMAC key drift. ' .
             'Investigate immediately and freeze write traffic if confirmed.'
         );
+
+        // Production-only: dispatch PagerDuty alert when the SCHEDULER itself
+        // fails to run audit:verify (e.g. ECS task crash, OOM kill).
+        // Note: if audit:verify exits with code 1 (chain mismatch), the alert
+        // is dispatched from within VerifyAuditChain::dispatchTamperingAlert()
+        // which also notifies Directors via the database channel.
+        if (app()->environment('production')) {
+            \App\Notifications\AuditChainTamperingDetected::dispatchToPagerDuty([
+                'reason' => 'audit:verify command failed to complete — scheduler onFailure hook triggered',
+                'action' => 'Check ECS scheduler task logs in CloudWatch: /ecs/dermacells-crm-production/scheduler',
+            ]);
+        }
     });
 
 /*

@@ -8,6 +8,8 @@ use App\Enums\UserRole;
 use App\Jobs\Evolution\EvalZoneAtRiskAlertJob;
 use App\Models\Alert;
 use App\Models\Customer;
+use App\Models\CustomerCategory;
+use App\Models\PaymentTerm;
 use App\Models\Product;
 use App\Models\PurchaseEvolutionMetric;
 use App\Models\User;
@@ -31,12 +33,18 @@ it('fires zone_at_risk alert when 40% of zone customers are inactive (threshold=
     $seller      = User::factory()->create(['role' => UserRole::Seller, 'is_active' => true]);
     $zone        = Zone::factory()->create(['distributor_id' => $distributor->id]);
     $product     = Product::factory()->create();
+    // Share a single category and payment term to avoid unique-code exhaustion
+    // when creating 10+ customers (CustomerCategoryFactory cycles through 8 codes).
+    $category = CustomerCategory::factory()->create();
+    $terms    = PaymentTerm::factory()->create();
 
     // 10 active customers in the zone
     $customers = Customer::factory()->count(10)->create([
-        'zone_id'            => $zone->id,
-        'assigned_seller_id' => $seller->id,
-        'is_active'          => true,
+        'zone_id'                  => $zone->id,
+        'assigned_seller_id'       => $seller->id,
+        'is_active'                => true,
+        'category_id'              => $category->id,
+        'default_payment_terms_id' => $terms->id,
     ]);
 
     // 4 are inactive (40%)
@@ -82,11 +90,17 @@ it('does NOT fire zone_at_risk when only 20% are inactive (threshold=30%)', func
     $seller      = User::factory()->create(['role' => UserRole::Seller, 'is_active' => true]);
     $zone        = Zone::factory()->create(['distributor_id' => $distributor->id]);
     $product     = Product::factory()->create();
+    // Share a single category and payment term to avoid unique-code exhaustion
+    // when creating 10+ customers (CustomerCategoryFactory cycles through 8 codes).
+    $category = CustomerCategory::factory()->create();
+    $terms    = PaymentTerm::factory()->create();
 
     $customers = Customer::factory()->count(10)->create([
-        'zone_id'            => $zone->id,
-        'assigned_seller_id' => $seller->id,
-        'is_active'          => true,
+        'zone_id'                  => $zone->id,
+        'assigned_seller_id'       => $seller->id,
+        'is_active'                => true,
+        'category_id'              => $category->id,
+        'default_payment_terms_id' => $terms->id,
     ]);
 
     // 2 inactive (20%)

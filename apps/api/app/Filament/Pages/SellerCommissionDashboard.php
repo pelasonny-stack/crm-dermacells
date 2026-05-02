@@ -58,8 +58,13 @@ class SellerCommissionDashboard extends Page implements HasForms
     // Computed result (populated by calculate()).
     // -------------------------------------------------------------------------
 
-    /** @var CommissionResult|null */
-    public ?CommissionResult $result = null;
+    /**
+     * Result serialized to a Livewire-safe array. The native CommissionResult
+     * DTO contains Money + BigDecimal which Livewire cannot hydrate.
+     *
+     * @var array<string, mixed>|null
+     */
+    public ?array $result = null;
 
     /** @var string|null  Full name of the selected seller for display. */
     public ?string $selectedSellerName = null;
@@ -108,8 +113,20 @@ class SellerCommissionDashboard extends Page implements HasForms
         $seller = User::findOrFail($this->selectedSellerId);
         $tiers  = CommissionTier::activeOn($month)->get();
 
-        $calculator   = new CommissionCalculatorService($tiers);
-        $this->result = $calculator->calculateForMonth($seller, $month);
+        $calculator = new CommissionCalculatorService($tiers);
+        $r = $calculator->calculateForMonth($seller, $month);
+
+        $this->result = [
+            'accumulated_usd' => $r->accumulated_usd->getAmount()->__toString(),
+            'tier_rate'       => $r->tier_rate->__toString(),
+            'commission_ars'  => $r->commission_ars->getAmount()->__toString(),
+            'commission_usd'  => $r->commission_usd->getAmount()->__toString(),
+            'is_director'     => $r->is_director,
+            'breakdown_by_zone' => array_map(
+                static fn ($b) => $b->toArray(),
+                $r->breakdown_by_zone,
+            ),
+        ];
 
         $this->selectedSellerName = $seller->full_name ?? $seller->email;
     }
@@ -121,14 +138,7 @@ class SellerCommissionDashboard extends Page implements HasForms
      */
     public function getBreakdownRows(): array
     {
-        if ($this->result === null) {
-            return [];
-        }
-
-        return array_map(
-            static fn ($b) => $b->toArray(),
-            $this->result->breakdown_by_zone,
-        );
+        return $this->result['breakdown_by_zone'] ?? [];
     }
 
     /**
@@ -143,11 +153,11 @@ class SellerCommissionDashboard extends Page implements HasForms
         }
 
         return [
-            'accumulated_usd' => $this->result->accumulated_usd->getAmount()->__toString(),
-            'tier_rate_pct'   => bcmul($this->result->tier_rate->__toString(), '100', 2) . '%',
-            'commission_ars'  => $this->result->commission_ars->getAmount()->__toString(),
-            'commission_usd'  => $this->result->commission_usd->getAmount()->__toString(),
-            'is_director'     => $this->result->is_director,
+            'accumulated_usd' => $this->result['accumulated_usd'],
+            'tier_rate_pct'   => bcmul($this->result['tier_rate'], '100', 2) . '%',
+            'commission_ars'  => $this->result['commission_ars'],
+            'commission_usd'  => $this->result['commission_usd'],
+            'is_director'     => $this->result['is_director'],
         ];
     }
 

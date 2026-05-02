@@ -40,8 +40,8 @@ final class CollectionsBySpeedometerWidget extends StatsOverviewWidget
             ->whereNotNull('due_date')
             ->whereRaw(
                 'total_amount > COALESCE((
-                    SELECT SUM(p.amount) FROM payments p
-                    WHERE p.sale_id = sales.id AND p.reversed = false AND p.currency = sales.currency
+                    SELECT SUM(p.amount_amount) FROM payments p
+                    WHERE p.sale_id = sales.id AND p.reversed = false AND p.amount_currency = sales.total_currency
                 ), 0)'
             )
             ->selectRaw("

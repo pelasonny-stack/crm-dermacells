@@ -69,3 +69,45 @@ npx expo start --tunnel
 ```
 
 Ver `apps/mobile/README.md` para detalles completos de setup, EAS Build y submission.
+
+---
+
+## Production deployment (Phase 17)
+
+Production infrastructure is managed with Terraform targeting AWS sa-east-1.
+All services run on ECS Fargate (Graviton ARM64). See the links below for full docs.
+
+| Document | Description |
+|---|---|
+| [infra/terraform/README.md](infra/terraform/README.md) | Terraform bootstrap, deploy, and rollback |
+| [docs/DR_RUNBOOK.md](docs/DR_RUNBOOK.md) | Disaster recovery — PITR restore, audit chain integrity, ECS rollback |
+| [docs/2FA_ENFORCEMENT.md](docs/2FA_ENFORCEMENT.md) | Google Workspace + Microsoft Entra MFA enforcement for Directors |
+| [loadtest/k6/README.md](loadtest/k6/README.md) | k6 load test usage (must pass before go-live) |
+
+### Infrastructure overview
+
+| Component | AWS service | Notes |
+|---|---|---|
+| API (FrankenPHP) | ECS Fargate | ARM64 Graviton, rolling deploy with circuit breaker |
+| Horizon worker | ECS Fargate | Separate service, 4 priority queues |
+| Reverb WebSockets | ECS Fargate | Path-routed via ALB (`/app/*`) |
+| Scheduler | ECS Fargate | desiredCount=1 always (not distributed-safe) |
+| Database | Aurora PostgreSQL 16 | Multi-AZ production, PITR 30d, force_ssl=on |
+| Cache / Queues | ElastiCache Redis 7 | Cluster mode disabled (Horizon compatibility) |
+| PWA static | S3 + CloudFront | OAC, SPA rewrite function, security headers |
+| Secrets | Secrets Manager | `dermacells/production` — all app secrets |
+| Audit exports | S3 Object Lock COMPLIANCE 7yr | Tamper-proof audit log dumps |
+| Monitoring | CloudWatch (12 alarms) + Sentry | PagerDuty integration for critical alerts |
+
+### Pre-go-live checklist
+
+- [ ] `terraform apply` on production succeeds cleanly
+- [ ] All 12 CloudWatch alarms are active
+- [ ] k6 `dashboard-flow.js` passes: p95 < 800ms, error rate < 1%
+- [ ] DR test: PITR restore to staging validated
+- [ ] `php artisan audit:verify` passes on production data
+- [ ] Sentry DSN configured for all 3 apps (backend, web, mobile)
+- [ ] PagerDuty integration key in Secrets Manager
+- [ ] 2FA enforced for all Director accounts (see `docs/2FA_ENFORCEMENT.md`)
+- [ ] EAS production build submitted to App Store + Play Store
+- [ ] Meta Business Verification confirmed active

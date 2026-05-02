@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace App\Filament\Widgets;
 
 use App\Enums\UserRole;
+use App\Models\Customer;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
-use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -35,7 +36,7 @@ final class Top10CustomersWidget extends TableWidget
     public function table(Table $table): Table
     {
         return $table
-            ->query(fn (): Builder => $this->buildQuery())
+            ->query(fn (): Builder => Customer::fromSub($this->buildRawQuery(), 'top_customers')->select('*'))
             ->columns([
                 Tables\Columns\TextColumn::make('full_name')
                     ->label('Cliente')
@@ -69,7 +70,7 @@ final class Top10CustomersWidget extends TableWidget
             ->paginated(false);
     }
 
-    private function buildQuery(): Builder
+    private function buildRawQuery(): \Illuminate\Database\Query\Builder
     {
         return DB::table('sale_items')
             ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
@@ -79,7 +80,7 @@ final class Top10CustomersWidget extends TableWidget
             ->selectRaw('
                 customers.id,
                 CONCAT(customers.first_name, \' \', customers.last_name) AS full_name,
-                SUM(sale_items.subtotal) AS total_volume,
+                SUM(sale_items.subtotal_amount) AS total_volume,
                 MAX(sales.currency) AS currency,
                 MAX(purchase_evolution_metrics.evolution_state) AS trend
             ')

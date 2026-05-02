@@ -86,18 +86,17 @@ final class DirectorPulseWidget extends StatsOverviewWidget
         $today = now()->toDateString();
 
         $sales = DB::table('sales')
-            ->join('sale_items', 'sale_items.sale_id', '=', 'sales.id')
             ->where('sales.status', 'delivered')
-            ->whereDate('sales.delivered_at', $today)
-            ->selectRaw('COUNT(DISTINCT sales.id) AS cnt, SUM(sales.total_amount) AS amount')
+            ->whereDate('sales.sale_date', $today)
+            ->selectRaw('COUNT(*) AS cnt, SUM(sales.total_amount) AS amount')
             ->first();
 
         $cobros = DB::table('payments')
             ->where('reversed', false)
             ->whereDate('payment_date', $today)
             ->selectRaw("
-                SUM(CASE WHEN currency = 'ARS' THEN amount ELSE 0 END) AS ars,
-                SUM(CASE WHEN currency = 'USD' THEN amount ELSE 0 END) AS usd
+                SUM(CASE WHEN amount_currency = 'ARS' THEN amount_amount ELSE 0 END) AS ars,
+                SUM(CASE WHEN amount_currency = 'USD' THEN amount_amount ELSE 0 END) AS usd
             ")
             ->first();
 

@@ -12,6 +12,7 @@ use App\Models\Sale;
 use App\Models\User;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
+use Brick\Money\Context\CustomContext;
 use Brick\Money\Money;
 use Carbon\CarbonPeriod;
 use Illuminate\Database\Eloquent\Builder;
@@ -105,9 +106,14 @@ final class DistributorMarginService
             return Money::zero($sale->currency);
         }
 
-        // Initialise accumulators in the sale's currency
-        $totalRevenue = Money::zero($sale->currency);
-        $totalCost    = Money::zero($sale->currency);
+        // Initialise accumulators using CustomContext(4) to match the precision
+        // used by MoneyCast when hydrating SaleItem subtotal and unit_price values
+        // from the DB (NUMERIC 18,4 columns). brick/money's plus() / minus() require
+        // both operands to share the same context — mixing ISO context (2 decimals)
+        // with CustomContext(4) throws MoneyMismatchException.
+        $ctx4         = new CustomContext(4);
+        $totalRevenue = Money::of(0, $sale->currency, $ctx4);
+        $totalCost    = Money::of(0, $sale->currency, $ctx4);
 
         // Resolve the distributor for this sale's zone
         $distributor = $this->resolveDistributorForSale($sale);
@@ -115,24 +121,31 @@ final class DistributorMarginService
         foreach ($items as $item) {
             /** @var \App\Models\SaleItem $item */
             $product  = $item->product;
-            $subtotal = $item->subtotal ?? Money::zero($sale->currency);
-            $costPerBox = $this->resolvePreferredCostPerBox($distributor, $product);
+            // Normalise subtotal to CustomContext(4) to match the accumulators.
+            $subtotalRaw = $item->subtotal;
+            $subtotal    = $subtotalRaw !== null
+                ? Money::of($subtotalRaw->getAmount(), $subtotalRaw->getCurrency(), $ctx4, RoundingMode::HALF_UP)
+                : Money::of(0, $sale->currency, $ctx4);
+
+            $costPerBoxRaw = $this->resolvePreferredCostPerBox($distributor, $product);
 
             // Cost must be in the same currency as the sale subtotal.
             // If currencies differ (e.g. cost configured in USD, sale in ARS)
             // we cannot do arithmetic — throw to force correct configuration.
-            if ($costPerBox->getCurrency()->getCurrencyCode() !== $sale->currency) {
+            if ($costPerBoxRaw->getCurrency()->getCurrencyCode() !== $sale->currency) {
                 throw new RuntimeException(sprintf(
                     'Currency mismatch: preferred cost for product %s is in %s but sale currency is %s. '
                     . 'Configure preferred cost in %s.',
                     $product->id,
-                    $costPerBox->getCurrency()->getCurrencyCode(),
+                    $costPerBoxRaw->getCurrency()->getCurrencyCode(),
                     $sale->currency,
                     $sale->currency,
                 ));
             }
 
-            $itemCost = $costPerBox->multipliedBy($item->quantity_boxes, RoundingMode::HALF_UP);
+            // Normalise cost to CustomContext(4) so all arithmetic shares the same context.
+            $costPerBox = Money::of($costPerBoxRaw->getAmount(), $costPerBoxRaw->getCurrency(), $ctx4, RoundingMode::HALF_UP);
+            $itemCost   = $costPerBox->multipliedBy($item->quantity_boxes, RoundingMode::HALF_UP);
 
             $totalRevenue = $totalRevenue->plus($subtotal);
             $totalCost    = $totalCost->plus($itemCost);
@@ -159,7 +172,7 @@ final class DistributorMarginService
      */
     public function marginInPeriod(User $distributor, CarbonPeriod $period, string $currency): Money
     {
-        $accumulated = Money::zero($currency);
+        $accumulated = Money::of(0, $currency, new CustomContext(4));
 
         Sale::query()
             ->with(['items.product'])

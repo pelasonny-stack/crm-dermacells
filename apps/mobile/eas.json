@@ -48,11 +48,17 @@
       "ios": {
         "appleId": "placeholder@dermacells.com.ar",
         "ascAppId": "PLACEHOLDER_APP_STORE_ID",
-        "appleTeamId": "PLACEHOLDER_TEAM_ID"
+        "appleTeamId": "PLACEHOLDER_TEAM_ID",
+        "bundleIdentifier": "ar.com.dermacells.crm",
+        "ascApiKeyPath": "./asc-config.json",
+        "language": "es-AR",
+        "metadataPath": "./store-metadata"
       },
       "android": {
-        "serviceAccountKeyPath": "./google-play-service-account.json",
-        "track": "internal"
+        "serviceAccountKeyPath": "./google-service-account.json",
+        "track": "internal",
+        "applicationId": "ar.com.dermacells.crm",
+        "releaseStatus": "draft"
       }
     }
   },

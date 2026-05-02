@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Notifications\AuditChainTamperingDetected;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 
 /**
  * Walks the entire audit_log HMAC chain and verifies that every row's
@@ -83,6 +85,7 @@ class VerifyAuditChain extends Command
 
             if (! hash_equals($expectedPrev, (string) $row->prev_hash)) {
                 $this->reportMismatch($row, 'prev_hash mismatch', $expectedPrev, (string) $row->prev_hash);
+                $this->dispatchTamperingAlert($row, 'prev_hash mismatch', $expectedPrev, (string) $row->prev_hash);
 
                 return 1;
             }
@@ -97,6 +100,7 @@ class VerifyAuditChain extends Command
 
             if (! hash_equals($expectedRowHash, (string) $row->row_hash)) {
                 $this->reportMismatch($row, 'row_hash mismatch', $expectedRowHash, (string) $row->row_hash);
+                $this->dispatchTamperingAlert($row, 'row_hash mismatch', $expectedRowHash, (string) $row->row_hash);
 
                 return 1;
             }
@@ -181,6 +185,47 @@ class VerifyAuditChain extends Command
             $data,
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION,
         ) ?: '{}';
+    }
+
+    /**
+     * Sends PagerDuty alert and in-app database notification to all Directors
+     * when a chain mismatch is detected.
+     *
+     * Uses a dual path:
+     *   1. AuditChainTamperingDetected::dispatchToPagerDuty() — direct HTTP,
+     *      no queue dependency (queue might be compromised during an incident)
+     *   2. Notification::send() to Director users — queued via critical queue
+     *      so Directors see it in the Filament notification centre on next login
+     */
+    private function dispatchTamperingAlert(object $row, string $reason, string $expected, string $actual): void
+    {
+        $context = [
+            'id'          => $row->id,
+            'occurred_at' => (string) $row->occurred_at,
+            'reason'      => $reason,
+            'expected'    => $expected,
+            'actual'      => $actual,
+        ];
+
+        // 1. PagerDuty — direct HTTP, bypasses queue for reliability
+        AuditChainTamperingDetected::dispatchToPagerDuty($context);
+
+        // 2. Database notification to all Directors
+        // Use try/catch so a DB problem doesn't swallow the exit code 1
+        try {
+            $directors = \App\Models\User::query()
+                ->where('role', 'director')
+                ->where('is_active', true)
+                ->get();
+
+            if ($directors->isNotEmpty()) {
+                Notification::send($directors, new AuditChainTamperingDetected($context));
+            }
+        } catch (\Throwable $e) {
+            Log::error('VerifyAuditChain: failed to send database notifications to Directors', [
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function reportMismatch(object $row, string $reason, string $expected, string $actual): void

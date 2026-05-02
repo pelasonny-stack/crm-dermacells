@@ -75,7 +75,10 @@ final class AuthorizationService
         // Broadcast to the private-director Reverb channel (ShouldBroadcastNow)
         event(new AuthorizationRequestedEvent($authRequest));
 
-        // Fan-out notification to all active Directors (queued)
+        // Fan-out notification to all active Directors (queued).
+        // The `users_directors_readable` RLS policy (added in migration
+        // 2026_05_18_000003) permits any authenticated role to SELECT director
+        // rows, so this query works correctly even when the requester is a Seller.
         $directors = User::query()
             ->where('role', UserRole::Director->value)
             ->where('is_active', true)
