@@ -219,8 +219,9 @@ class SaleResource extends Resource
     {
         return $infolist->schema([
             Infolists\Components\Section::make('Estado')->schema([
-                Infolists\Components\BadgeEntry::make('status')
+                Infolists\Components\TextEntry::make('status')
                     ->label('Estado')
+                    ->badge()
                     ->formatStateUsing(fn (SaleStatus $state) => $state->label())
                     ->color(fn (SaleStatus $state) => $state->color()),
 

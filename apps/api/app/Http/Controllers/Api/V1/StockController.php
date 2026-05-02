@@ -247,7 +247,12 @@ class StockController extends Controller
 
         $validated = $request->validate([
             'product_id'     => ['required', 'uuid', 'exists:products,id'],
-            'seller_id'      => ['required', 'uuid', 'exists:users,id'],
+            // NOTE: seller_id FK existence is enforced by the DB constraint on
+            // seller_stock.seller_id → users.id. We intentionally omit the
+            // `exists:users,id` Eloquent rule here because the distributor GUC
+            // restricts the users-table visibility to self-only via RLS, which
+            // would cause the validation to fail for any valid seller UUID.
+            'seller_id'      => ['required', 'uuid'],
             'quantity_boxes' => ['required', 'integer', 'min:1'],
             'reference_doc'  => ['nullable', 'string', 'max:255'],
         ]);

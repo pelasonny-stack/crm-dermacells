@@ -35,23 +35,34 @@ class SetPostgresRlsContext
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // Use Auth::id() instead of Auth::user() — the latter would call
-        // User::find() under app_role with no GUC set, which RLS hides.
-        // Chicken-and-egg: we need the GUC set BEFORE the user model can
-        // be loaded.
-        $userId = Auth::id();
+        // Resolve the authenticated user from any available guard.
+        // For API routes (auth:sanctum), actingAs() pre-sets the sanctum guard
+        // before the request is dispatched. For web routes, the session guard
+        // is used. We probe both to avoid guard-ordering issues where this
+        // middleware runs before the route-specific auth middleware.
+        $resolvedUser = Auth::user()
+            ?? (Auth::hasUser() ? null : Auth::guard('sanctum')->user());
+
+        $userId = $resolvedUser?->getAuthIdentifier() ?? Auth::id();
 
         if ($userId === null) {
             return $next($request);
         }
 
-        // Look up role via migration_role connection (BYPASSRLS) to avoid
-        // the same chicken-and-egg. Cache on the request to avoid repeat
-        // queries within the same request.
-        $role = DB::connection('pgsql_migration')
-            ->table('users')
-            ->where('id', (string) $userId)
-            ->value('role');
+        // Extract role from the already-loaded user model to avoid a separate
+        // DB lookup on a BYPASSRLS connection (which cannot see uncommitted
+        // test-transaction rows). Fall back to pgsql_migration only when the
+        // user model is not yet resolved (production bootstrap path).
+        if ($resolvedUser !== null && isset($resolvedUser->role)) {
+            $role = $resolvedUser->role instanceof \App\Enums\UserRole
+                ? $resolvedUser->role->value
+                : (string) $resolvedUser->role;
+        } else {
+            $role = DB::connection('pgsql_migration')
+                ->table('users')
+                ->where('id', (string) $userId)
+                ->value('role');
+        }
 
         if ($role === null) {
             return $next($request);

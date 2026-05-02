@@ -6,6 +6,7 @@ namespace App\Casts;
 
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
+use Brick\Money\Context\CustomContext;
 use Brick\Money\Currency;
 use Brick\Money\Money;
 use Illuminate\Contracts\Database\Eloquent\CastsAttributes;
@@ -85,10 +86,13 @@ class MoneyCast implements CastsAttributes
             return null;
         }
 
+        // Use CustomContext(4) to preserve the DB column's NUMERIC(18,4) precision.
+        // The default Money::of() normalises to the currency's minor unit (e.g. 2
+        // for USD), which would round-trip to '750.00' instead of '750.0000'.
         return Money::of(
             BigDecimal::of((string) $amount),
             Currency::of((string) $currency),
-            null,
+            new CustomContext(4),
             RoundingMode::UNNECESSARY,
         );
     }
@@ -126,8 +130,12 @@ class MoneyCast implements CastsAttributes
             );
         }
 
+        // Store as NUMERIC(18,4) string — always 4 decimal places — regardless
+        // of the currency's natural minor unit (e.g. USD normalises to 2).
+        $amount = $value->getAmount()->toScale(4, \Brick\Math\RoundingMode::UNNECESSARY);
+
         return [
-            $this->amountColumn   => (string) $value->getAmount(),
+            $this->amountColumn   => (string) $amount,
             $this->currencyColumn => $value->getCurrency()->getCurrencyCode(),
         ];
     }

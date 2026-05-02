@@ -175,8 +175,9 @@ class DistributorSettlementResource extends Resource
                 Infolists\Components\TextEntry::make('distributor.full_name')->label('Distribuidor'),
                 Infolists\Components\TextEntry::make('amount_amount')->label('Monto')->numeric(decimalPlaces: 2),
                 Infolists\Components\TextEntry::make('amount_currency')->label('Moneda'),
-                Infolists\Components\BadgeEntry::make('status')
+                Infolists\Components\TextEntry::make('status')
                     ->label('Estado')
+                    ->badge()
                     ->formatStateUsing(fn (SettlementStatus $state) => $state->label())
                     ->color(fn (SettlementStatus $state) => $state->color()),
                 Infolists\Components\TextEntry::make('reference')->label('Referencia'),

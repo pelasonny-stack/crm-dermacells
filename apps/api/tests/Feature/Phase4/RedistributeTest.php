@@ -7,11 +7,14 @@ use App\Actions\Stock\RedistributeFromDistributorAction;
 use App\Actions\Stock\RegisterImportAction;
 use App\Enums\StockMovementType;
 use App\Exceptions\StockInsufficientException;
+use App\Models\Customer;
 use App\Models\DistributorStock;
 use App\Models\Product;
 use App\Models\SellerStock;
 use App\Models\StockMovement;
 use App\Models\User;
+use App\Models\Zone;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\UnauthorizedException;
 
@@ -42,6 +45,10 @@ function setupCentralAndDispatch(): array
         'is_active'           => true,
     ]);
 
+    // Authenticate as director so RegisterImportAction and
+    // DispatchToDistributorAction can resolve Auth::user()
+    Auth::setUser($director);
+
     // Director imports 20 boxes
     $importAction = app(RegisterImportAction::class);
     $importAction->execute(
@@ -58,6 +65,12 @@ function setupCentralAndDispatch(): array
         distributorId: $distributor->id,
         quantityBoxes: 12,
     );
+
+    // Create a zone + customer so the seller_stock_distributor_zone RLS policy
+    // allows the distributor to SELECT seller_stock rows for this seller after
+    // redistribution (the USING clause requires seller_id IN customers in zone).
+    $zone = Zone::factory()->create(['distributor_id' => $distributor->id]);
+    Customer::factory()->assignedTo($seller)->inZone($zone)->create();
 
     return compact('director', 'distributor', 'seller', 'product');
 }

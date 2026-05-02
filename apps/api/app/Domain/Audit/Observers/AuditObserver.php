@@ -217,7 +217,7 @@ class AuditObserver
             'actor_user_id' => $actor?->getAuthIdentifier(),
             'actor_role'    => $this->actorRole($actor),
             'section'       => $eventType,
-            'entity_type'   => $model::class,
+            'entity_type'   => $model->getTable(),
             'entity_id'     => (string) $model->getKey(),
             'field_name'    => $field,
             'old_value'     => $oldValue,

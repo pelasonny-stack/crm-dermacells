@@ -21,10 +21,11 @@ class CustomerCategoryFactory extends Factory
 
     public function definition(): array
     {
-        // Use unique non-seeded codes (E-Z) to avoid colliding with the
-        // base seeded categories A/B/C/D in tests that wipe-and-reseed.
+        // Use codes E-L (8 slots) to avoid colliding with seeded A-D and
+        // with categoryD() which uses M-Z. DatabaseTransactions ensures
+        // each row is rolled back between tests so codes cycle safely.
         static $offset = 0;
-        $code = chr(ord('E') + ($offset % 22));
+        $code = chr(ord('E') + ($offset % 8));
         $offset++;
 
         return [
@@ -36,12 +37,23 @@ class CustomerCategoryFactory extends Factory
         ];
     }
 
-    /** Category D — Distribuidor-cliente — visible only to Directors (§3.3). */
+    /** Category D — Distribuidor-cliente — visible only to Directors (§3.3).
+     *
+     * Uses codes M-Z (14 slots) — disjoint from seeded A-D and from
+     * definition()'s E-L range. DatabaseTransactions rolls each row back after
+     * every test, so the same letter is safely reusable across tests.
+     * The RLS policies filter on director_only=TRUE, not on the code column.
+     */
     public function categoryD(): static
     {
+        static $dIdx = 0;
+        // M-Z gives 14 unique single-char codes (14 = ord('Z') - ord('M') + 1).
+        $code = chr(ord('M') + ($dIdx % 14));
+        $dIdx++;
+
         return $this->state(fn () => [
-            'code'                   => 'D',
-            'name'                   => 'Distribuidor-cliente',
+            'code'                   => $code,
+            'name'                   => 'Distribuidor-cliente (test)',
             'default_frequency_days' => 60,
             'director_only'          => true,
         ]);

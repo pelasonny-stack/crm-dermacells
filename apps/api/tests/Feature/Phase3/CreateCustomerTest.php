@@ -32,7 +32,7 @@ function makeCustomerPayload(array $overrides = []): array
     return array_merge([
         'first_name'               => 'Ana',
         'last_name'                => 'García',
-        'cuit'                     => '20123456789',
+        'cuit'                     => '20123456786',
         'phone'                    => '+5491112345678',
         'email'                    => 'ana.garcia@example.com',
         'address'                  => 'Av. Corrientes 1234, CABA',
@@ -56,11 +56,11 @@ it('creates a customer with valid data and returns 201', function (): void {
         ->postJson('/api/v1/customers', $payload);
 
     $response->assertCreated()
-        ->assertJsonPath('data.cuit', '20123456789')
+        ->assertJsonPath('data.cuit', '20123456786')
         ->assertJsonPath('data.first_name', 'Ana')
         ->assertJsonPath('data.is_active', true);
 
-    expect(Customer::where('cuit', '20123456789')->exists())->toBeTrue();
+    expect(Customer::where('cuit', '20123456786')->exists())->toBeTrue();
 });
 
 it('returns a meta.permissions block in the creation response', function (): void {
@@ -83,7 +83,7 @@ it('seller can create a customer assigned to themselves', function (): void {
     $payload = [
         'first_name'               => 'Carlos',
         'last_name'                => 'López',
-        'cuit'                     => '23456789012',
+        'cuit'                     => '23456789013',
         'phone'                    => '+5491187654321',
         'email'                    => 'carlos@example.com',
         'address'                  => 'Callao 500, CABA',
@@ -143,12 +143,12 @@ it('accepts CUIT formatted with hyphens and strips them', function (): void {
     $director = User::factory()->director()->create();
 
     $response = $this->actingAs($director, 'sanctum')
-        ->postJson('/api/v1/customers', makeCustomerPayload(['cuit' => '20-12345678-9']));
+        ->postJson('/api/v1/customers', makeCustomerPayload(['cuit' => '20-12345678-6']));
 
-    // Hyphenated CUIT '20-12345678-9' is the same as '20123456789' — valid checksum
+    // Hyphenated CUIT '20-12345678-6' is the same as '20123456786' — valid checksum
     $response->assertCreated();
     $data = $response->json('data');
-    expect($data['cuit'])->toBe('20123456789');
+    expect($data['cuit'])->toBe('20123456786');
 });
 
 // ---------------------------------------------------------------------------

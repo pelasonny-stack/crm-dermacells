@@ -6,6 +6,7 @@ use App\Domain\Customers\Services\CustomerReassignmentService;
 use App\Enums\UserRole;
 use App\Models\Customer;
 use App\Models\CustomerCategory;
+use App\Models\ExchangeRate;
 use App\Models\PaymentTerm;
 use App\Models\Sale;
 use App\Models\User;
@@ -86,6 +87,7 @@ it('open sales remain under original Vendedor after reassignment', function (): 
     // Resolve mandatory FK columns from seeded/factory data.
     $zone          = Zone::factory()->create();
     $paymentTerms  = \App\Models\PaymentTerm::factory()->create();
+    $exchangeRate  = ExchangeRate::factory()->create();
 
     $saleId = (string) \Illuminate\Support\Str::uuid();
     DB::table('sales')->insert([
@@ -97,6 +99,7 @@ it('open sales remain under original Vendedor after reassignment', function (): 
         'status'           => 'draft',
         'sale_date'        => now()->toDateString(),
         'currency'         => 'ARS',
+        'exchange_rate_id' => $exchangeRate->id,
         'total_amount'     => '1500.0000',
         'total_currency'   => 'ARS',
         'created_at'       => now(),

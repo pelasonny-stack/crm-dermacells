@@ -8,6 +8,7 @@ use App\Actions\Stock\RegisterImportAction;
 use App\Exceptions\StockInsufficientException;
 use App\Models\Product;
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 /*
@@ -23,6 +24,8 @@ use Illuminate\Support\Facades\DB;
 
 function importBoxes(User $director, string $productId, int $qty): void
 {
+    // Ensure RegisterImportAction can resolve Auth::user() for the director check.
+    Auth::setUser($director);
     $action = app(RegisterImportAction::class);
     $action->execute(
         productId: $productId,

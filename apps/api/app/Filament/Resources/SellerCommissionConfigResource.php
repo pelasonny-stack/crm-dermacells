@@ -38,23 +38,30 @@ class SellerCommissionConfigResource extends Resource
             Forms\Components\Section::make('Configuración de comisión')->schema([
                 Forms\Components\Select::make('distributor_id')
                     ->label('Distribuidor')
-                    ->relationship('distributor', 'full_name', fn (Builder $q) =>
-                        $q->where('role', UserRole::Distributor->value)
-                    )
+                    ->options(fn () => \App\Models\User::query()
+                        ->where('role', UserRole::Distributor->value)
+                        ->orderBy('full_name')
+                        ->pluck('full_name', 'id')
+                        ->all())
                     ->searchable()
                     ->required(),
 
                 Forms\Components\Select::make('seller_id')
                     ->label('Vendedor')
-                    ->relationship('seller', 'full_name', fn (Builder $q) =>
-                        $q->whereIn('role', [UserRole::Seller->value, UserRole::Director->value])
-                    )
+                    ->options(fn () => \App\Models\User::query()
+                        ->whereIn('role', [UserRole::Seller->value, UserRole::Director->value])
+                        ->orderBy('full_name')
+                        ->pluck('full_name', 'id')
+                        ->all())
                     ->searchable()
                     ->required(),
 
                 Forms\Components\Select::make('zone_id')
                     ->label('Zona')
-                    ->relationship('zone', 'name')
+                    ->options(fn () => \App\Models\Zone::query()
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->all())
                     ->searchable()
                     ->required(),
 
