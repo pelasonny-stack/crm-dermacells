@@ -68,7 +68,7 @@ it('Director bulk-reassigns 5 clients and audit_log has 5 rows', function (): vo
 
     // audit_log should have entries for the 5 updated customer rows.
     $auditRows = DB::table('audit_log')
-        ->where('entity_type', 'customers')
+        ->where('entity_type', \App\Models\Customer::class)
         ->whereIn('entity_id', $customerIds)
         ->count();
 

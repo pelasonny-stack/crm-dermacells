@@ -45,6 +45,9 @@ it('distributor cannot resolve an authorization request (403)', function (): voi
 
     $response->assertStatus(403);
 
+    // Reset GUC to director so RLS allows the SELECT (the HTTP request's
+    // savepoint committed the distributor GUC into the outer transaction).
+    \Illuminate\Support\Facades\DB::statement("SET LOCAL app.user_role = 'director'");
     expect($this->authRequest->fresh()->status)->toBe('pending');
 });
 

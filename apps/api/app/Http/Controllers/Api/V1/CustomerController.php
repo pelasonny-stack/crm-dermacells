@@ -102,6 +102,17 @@ class CustomerController extends Controller
      */
     public function show(Request $request, Customer $customer): JsonResponse
     {
+        // Defense-in-depth: SubstituteBindings resolves the model before
+        // SetPostgresRlsContext sets the GUC, so RLS cannot block route model
+        // binding for category-D customers. Enforce the same protection here.
+        $user = $request->user();
+        if ($user?->role !== UserRole::Director) {
+            $customer->loadMissing('category');
+            if ($customer->category?->director_only) {
+                abort(404);
+            }
+        }
+
         $customer->load(['category', 'zone', 'assignedSeller', 'defaultPaymentTerm', 'billingEntities', 'contacts', 'scheduledActions']);
 
         return response()->json([
@@ -183,8 +194,25 @@ class CustomerController extends Controller
     /**
      * GET /api/v1/customers/{customer}/scheduled-actions
      */
-    public function scheduledActionsIndex(Customer $customer): JsonResponse
+    public function scheduledActionsIndex(Request $request, Customer $customer): JsonResponse
     {
+        // Defense-in-depth: SubstituteBindings resolves the model before
+        // SetPostgresRlsContext sets the GUC, so RLS cannot block route model
+        // binding. Enforce visibility rules at the application layer.
+        $user = $request->user();
+        if ($user?->role !== UserRole::Director) {
+            // Category-D customers are invisible to non-directors.
+            $customer->loadMissing('category');
+            if ($customer->category?->director_only) {
+                abort(404);
+            }
+
+            // Sellers can only see customers assigned to them.
+            if ($user->role === UserRole::Seller && $customer->assigned_seller_id !== $user->id) {
+                abort(404);
+            }
+        }
+
         $actions = $customer->scheduledActions()
             ->orderBy('scheduled_date')
             ->get();
