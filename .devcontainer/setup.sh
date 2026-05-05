@@ -6,6 +6,8 @@ REPO_ROOT="/workspaces/crm-dermacells"
 API_DIR="${REPO_ROOT}/apps/api"
 
 echo "[setup] Installing system deps..."
+# Drop stale third-party repos that can break apt-get (Yarn, etc.)
+sudo rm -f /etc/apt/sources.list.d/yarn.list /etc/apt/sources.list.d/yarnpkg.list 2>/dev/null || true
 sudo apt-get update -qq
 sudo apt-get install -y --no-install-recommends \
     libpq-dev \
@@ -15,10 +17,29 @@ sudo apt-get install -y --no-install-recommends \
     redis-tools \
     unzip
 
-echo "[setup] Installing PHP extensions..."
-sudo docker-php-ext-install -j"$(nproc)" pdo_pgsql pgsql intl zip bcmath || true
-sudo pecl install redis || true
-sudo bash -c 'echo "extension=redis.so" > /usr/local/etc/php/conf.d/docker-php-ext-redis.ini' || true
+echo "[setup] Installing PHP extensions (one at a time to survive partial failures)..."
+# Compile from /usr/src/php to avoid docker-php-ext-enable cwd bug
+cd /
+for ext in pdo_pgsql pgsql intl zip bcmath pcntl; do
+    if ! php -m 2>/dev/null | grep -qi "^${ext}$"; then
+        sudo docker-php-ext-install -j"$(nproc)" "${ext}" || echo "[setup] WARN: ${ext} compile failed"
+    fi
+done
+
+# Workaround for docker-php-ext-enable bug: write .ini files manually
+PHP_CONF_DIR=/usr/local/etc/php/conf.d
+for ext in intl zip bcmath pcntl pdo_pgsql pgsql; do
+    INI="${PHP_CONF_DIR}/docker-php-ext-${ext}.ini"
+    [[ -f "${INI}" ]] || sudo bash -c "echo 'extension=${ext}.so' > '${INI}'"
+done
+
+# Redis via PECL
+if ! php -m 2>/dev/null | grep -qi "^redis$"; then
+    sudo pecl install redis </dev/null || true
+    sudo bash -c "echo 'extension=redis.so' > '${PHP_CONF_DIR}/docker-php-ext-redis.ini'" || true
+fi
+
+php -m | grep -E "intl|zip|pcntl|pdo_pgsql|pgsql|bcmath|redis" || true
 
 echo "[setup] Installing pnpm..."
 sudo corepack enable || true
@@ -26,7 +47,11 @@ sudo corepack prepare pnpm@latest --activate || npm install -g pnpm
 
 echo "[setup] Composer install..."
 cd "${API_DIR}"
-composer install --no-interaction --prefer-dist --optimize-autoloader
+# --ignore-platform-req=php tolerates lockfile pinned to PHP 8.4 when image is 8.3
+composer install --no-interaction --prefer-dist --optimize-autoloader \
+    --ignore-platform-req=php --ignore-platform-req=php+ \
+  || composer update --no-interaction --prefer-dist \
+        --ignore-platform-req=php --ignore-platform-req=php+
 
 echo "[setup] Setting up .env..."
 if [[ ! -f "${API_DIR}/.env" ]]; then
