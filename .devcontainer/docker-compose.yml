@@ -1,0 +1,35 @@
+services:
+  app:
+    image: mcr.microsoft.com/devcontainers/php:1-8.3-bookworm
+    volumes:
+      - ../..:/workspaces:cached
+    command: sleep infinity
+    networks:
+      - crm
+    environment:
+      DB_HOST: db
+      REDIS_HOST: redis
+
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    networks:
+      - crm
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - crm
+
+volumes:
+  pg-data:
+
+networks:
+  crm:

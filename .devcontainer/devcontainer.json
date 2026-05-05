@@ -1,0 +1,53 @@
+{
+  "name": "crm-dermacells",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/crm-dermacells",
+  "shutdownAction": "stopCompose",
+
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20",
+      "nodeGypDependencies": true
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+
+  "forwardPorts": [5173, 8000, 8080],
+  "portsAttributes": {
+    "5173": {
+      "label": "Web (Vite PWA)",
+      "visibility": "public",
+      "onAutoForward": "openPreview"
+    },
+    "8000": {
+      "label": "API (Laravel + Filament admin)",
+      "visibility": "public",
+      "onAutoForward": "notify"
+    },
+    "8080": {
+      "label": "Reverb (WebSockets)",
+      "visibility": "public",
+      "onAutoForward": "silent"
+    }
+  },
+
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "postStartCommand": "bash .devcontainer/start.sh",
+
+  "remoteUser": "vscode",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "bmewburn.vscode-intelephense-client",
+        "onecentlin.laravel-blade",
+        "amiralizadeh9480.laravel-extra-intellisense",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "EditorConfig.EditorConfig"
+      ]
+    }
+  }
+}

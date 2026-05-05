@@ -1,8 +1,8 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import tailwindcss from '@tailwindcss/vite';
-import { VitePWA } from 'vite-plugin-pwa';
-import path from 'path';
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+import { VitePWA } from 'vite-plugin-pwa'
+import path from 'path'
 
 export default defineConfig({
   plugins: [
@@ -62,14 +62,13 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
       // Resolve workspace package to TypeScript source during development.
       // Remove when api-client has a compiled dist/ output.
-      '@dermacells/api-client': path.resolve(
-        __dirname,
-        '../../packages/api-client/src/index.ts',
-      ),
+      '@dermacells/api-client': path.resolve(__dirname, '../../packages/api-client/src/index.ts'),
     },
   },
   server: {
+    host: '0.0.0.0',
     port: 5173,
+    allowedHosts: ['.app.github.dev', '.ngrok.app', '.ngrok-free.app'],
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8000',
@@ -88,4 +87,4 @@ export default defineConfig({
       },
     },
   },
-});
+})
